@@ -1,31 +1,30 @@
-export default function App() {
-  import React, { useRef, useMemo, useState, useEffect } from "react";
-  import {
-    EDM_TAXONOMY,
-    midiToName,
-    SCALE_DEGREES,
-    NOTE_NAMES,
-    GENRE_THEORY_PROGRESSIONS,
-    DEFAULT_THEORY_PROGRESSIONS,
-  } from "./data";
-  
-  import {
-    Layers,
-    Sparkles,
-    Sliders,
-    Volume2,
-    Activity,
-    Music,
-    Download,
-    Dices,
-    Play,
-    Square,
-    FileAudio,
-    FileCode,
-    Zap,
-    Palette,
-  } from "lucide-react";
-  
+import React, { useRef, useMemo, useState, useEffect } from "react";
+import {
+  EDM_TAXONOMY,
+  midiToName,
+  SCALE_DEGREES,
+  NOTE_NAMES,
+  GENRE_THEORY_PROGRESSIONS,
+  DEFAULT_THEORY_PROGRESSIONS,
+} from "./data";
+
+import {
+  Layers,
+  Sparkles,
+  Sliders,
+  Volume2,
+  Activity,
+  Music,
+  Download,
+  Dices,
+  Play,
+  Square,
+  FileAudio,
+  FileCode,
+  Zap,
+  Palette,
+} from "lucide-react";
+
   // Creative, high-contrast EDM hardware and club themes
   interface Theme {
     id: string;
@@ -753,4 +752,4 @@ export default function App() {
       </div>
     );
   }
-}
+
