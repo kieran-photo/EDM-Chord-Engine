@@ -421,8 +421,8 @@ import {
     };
   
     return (
-      <div className={`min-h-screen w-full flex flex-col items-center justify-center p-4 font-sans select-none text-zinc-100 bg-linear-to-b ${currentTheme.bgGradient}`}>
-        <div className={`w-210 rounded-2xl border ${currentTheme.cardBorder} bg-black/60 p-4 shadow-2xl flex flex-col gap-3 backdrop-blur-md`}>
+      <div className={`min-h-screen w-full flex flex-col items-center justify-center p-4 md:p-8 font-sans select-none text-zinc-100 bg-linear-to-b ${currentTheme.bgGradient}`}>
+       <div className={`w-full max-w-6xl rounded-2xl border ${currentTheme.cardBorder} bg-black/70 p-5 md:p-6 shadow-2xl flex flex-col gap-4 backdrop-blur-md`}>
           {/* Top Header Controls (Single-Line Compact Strip) */}
           <div className="flex h-10 items-center justify-between border-b border-zinc-800 pb-2 gap-1.5 flex-nowrap">
             <div className="flex items-center gap-1.5 shrink-0">
@@ -583,8 +583,8 @@ import {
             </div>
   
             {/* Piano Roll Grid Canvas */}
-            <div className={`relative flex h-32 w-full rounded border border-zinc-800 ${currentTheme.pianoRollBg} overflow-hidden mt-1`}>
-              <div className="w-8 flex flex-col justify-between border-r border-zinc-800 bg-black/60 py-0.5 z-10">
+            <div className={`relative flex h-48 md:h-56 w-full rounded border border-zinc-800 ${currentTheme.pianoRollBg} overflow-hidden mt-1`}>
+              <div className="w-9 flex flex-col justify-between border-r border-zinc-800 bg-black/60 py-0.5 z-10">
                 {["B5", "G5", "E5", "C5", "A4", "F4", "D4", "B3", "G3", "E3", "C3", "A2", "F2", "D2", "C2"].map((note) => (
                   <span
                     key={note}
