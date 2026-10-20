@@ -421,12 +421,12 @@ import {
     };
   
     return (
-      <div className={`min-h-screen w-full flex flex-col items-center justify-center p-4 font-sans select-none text-zinc-100 bg-gradient-to-b ${currentTheme.bgGradient}`}>
-        <div className={`w-[840px] rounded-2xl border ${currentTheme.cardBorder} bg-black/60 p-4 shadow-2xl flex flex-col gap-3 backdrop-blur-md`}>
+      <div className={`min-h-screen w-full flex flex-col items-center justify-center p-4 font-sans select-none text-zinc-100 bg-linear-to-b ${currentTheme.bgGradient}`}>
+        <div className={`w-210 rounded-2xl border ${currentTheme.cardBorder} bg-black/60 p-4 shadow-2xl flex flex-col gap-3 backdrop-blur-md`}>
           {/* Top Header Controls (Single-Line Compact Strip) */}
           <div className="flex h-10 items-center justify-between border-b border-zinc-800 pb-2 gap-1.5 flex-nowrap">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className={`flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br ${currentTheme.badge}`}>
+              <div className={`flex h-6 w-6 items-center justify-center rounded bg-linear-to-br ${currentTheme.badge}`}>
                 <Zap className="h-3 w-3 text-white" />
               </div>
               <div>
@@ -589,7 +589,7 @@ import {
                   <span
                     key={note}
                     className={`text-[7px] font-mono px-1 font-semibold leading-none ${
-                      note.startsWith("C") ? `\${currentTheme.headerAccent} font-bold` : "text-zinc-600"
+                      note.startsWith("C") ? `${currentTheme.headerAccent} font-bold` : "text-zinc-600"
                     }`}
                   >
                     {note}
@@ -597,7 +597,7 @@ import {
                 ))}
               </div>
   
-              <div className="relative flex-1 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:100%_7.14%]">
+              <div className="relative flex-1 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-size-[100%_7.14%]">
                 <div className="absolute inset-0 flex justify-between pointer-events-none">
                   {Array.from({ length: barsCount - 1 }).map((_, i) => (
                     <div key={i} className="border-r border-zinc-700/40 h-full" style={{ width: `${100 / barsCount}%` }} />
@@ -614,7 +614,7 @@ import {
                     return (
                       <div
                         key={`${bIdx}-${midi}`}
-                        className={`absolute h-2.5 rounded-sm bg-gradient-to-r ${currentTheme.noteGradient} flex items-center px-1`}
+                        className={`absolute h-2.5 rounded-sm bg-linear-to-r ${currentTheme.noteGradient} flex items-center px-1`}
                         style={{
                           top: `${top}%`,
                           left: `${baseLeft + strumOffset}%`,
