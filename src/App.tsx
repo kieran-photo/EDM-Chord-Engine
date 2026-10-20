@@ -120,7 +120,7 @@ const THEMES: Theme[] = [
   },
 ];
 
-export default function Component() {
+export default function App() {
   const [themeId, setThemeId] = useState("cyberpunk");
   const [genreIdx, setGenreIdx] = useState(0);
   const [subgenreIdx, setSubgenreIdx] = useState(0);
