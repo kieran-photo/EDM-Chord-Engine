@@ -35,4 +35,19 @@ Magma Cataclysm Tearout Dubstep
 - Lush Strings
 - Vocal Choir
 
+## NEW! - Chop chords how you want:
+1/8 drive
+<img width="1600" height="871" alt="image" src="https://github.com/user-attachments/assets/10b966b9-85b6-44e8-bf74-b43f5840f2b7" />
+Tresillo 3-3-2
+<img width="3770" height="2070" alt="image" src="https://github.com/user-attachments/assets/34cdcf86-ebd4-47b4-ba0f-4c62fea86d3a" />
+
+## NEW! - Create arpeggios from your generated chords with ease:
+Down (Descending)
+<img width="3772" height="2067" alt="image" src="https://github.com/user-attachments/assets/b136f922-2cbf-4ebb-9e81-e76a935af0fc" />
+Down-Up (Reverse)
+<img width="3777" height="2077" alt="image" src="https://github.com/user-attachments/assets/14e2f197-4a63-4dcf-80fa-62f4c1db3496" />
+
+
+
+
 **Link to test EDM Chord Engine Web Edition:** [https://edmchordengine.netlify.app](https://edmchordengine.netlify.app/)
