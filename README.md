@@ -3,9 +3,9 @@
 
 **This online chord progression generator is the perfect way to generate new chords that fit with particular styles of electronic music.**
 
-## What's new in V0.1.1?
+## What's new in V0.1.2?
 
-V0.1.1 contains bug fixes mainly with the chord progression generation being fixed to stop duplicating the 4th bar in a chord sequence and also a fix for the responsiveness of the app across desktop, mobile and tablet. In addition there have been some new features added including a new seed based unlimited chord generator, some new colour themes and some new instruments for the preview audio tool.
+V0.1.2 contains bug fixes mainly for the chord progression generation, plus you can now chop chords with a single dial, you can also now create arpeggios with the click of a button or two. additionally the piano roll is now editable!
 
 ## New Themes:
 Astral Aurora Uplifting Trance
