@@ -1189,17 +1189,17 @@ export default function Component() {
     setVariationSeed(Math.floor(Math.random() * 999999) + 1);
   };
 
-  // Helper for Phrase tag color
   const getPhraseBadgeColor = (phrase: string) => {
     switch (phrase) {
-      case "A":
+      case "THEME":
         return "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
-      case "B":
-        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
-      case "C":
-        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-      case "D":
-        return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+      case "VAR 8":
+        return "bg-purple-500/30 text-purple-200 border-purple-400 font-bold shadow-[0_0_8px_rgba(168,85,247,0.4)]";
+      case "VAR 11":
+      case "VAR 12":
+        return "bg-amber-500/30 text-amber-200 border-amber-400 font-bold shadow-[0_0_8px_rgba(245,158,11,0.4)]";
+      case "VAR 16":
+        return "bg-emerald-500/30 text-emerald-200 border-emerald-400 font-bold shadow-[0_0_8px_rgba(16,185,129,0.4)]";
       default:
         return "bg-zinc-800 text-zinc-300 border-zinc-700";
     }
@@ -1376,10 +1376,10 @@ export default function Component() {
               <span>{barsCount}-BAR PROGRESSION</span>
               <span className="text-[9px] font-mono text-zinc-400 normal-case">
                 {barsCount === 4
-                  ? "(Phrase A: Theme)"
+                  ? "(Theme Loop)"
                   : barsCount === 8
-                  ? "(A: Theme · B: Varied Response & Cadence)"
-                  : "(A: Theme · B: Variation · C: Bridge · D: Climax)"}
+                  ? "(Theme + Bar 8 Unique Turnaround)"
+                  : "(Theme + Unique Bars 8, 11, 12 & 16)"}
               </span>
             </span>
             <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -1390,7 +1390,7 @@ export default function Component() {
             </div>
           </div>
 
-          {/* Chord Chips with Responsive Grid */}
+          {/* Chord Chips with Responsive Grid (2-cols on mobile, 4 on tablet, 8 on desktop!) */}
           <div
             className={`grid gap-1.5 sm:gap-2 ${
               barsCount === 4
@@ -1639,21 +1639,25 @@ export default function Component() {
         {/* Informational Sub-Strip on Progression Architecture */}
         <div className="flex flex-col sm:flex-row items-center justify-between border-t border-zinc-800/80 pt-2 text-[8px] sm:text-[9px] font-mono text-zinc-400 gap-1 text-center sm:text-left">
           <div className="flex items-center gap-1 flex-wrap justify-center sm:justify-start">
-            <span className="text-zinc-500 font-bold">ARCHITECTURE:</span>
-            <span>Phrase A (Theme)</span>
-            <ChevronRight className="h-2.5 w-2.5 text-zinc-600" />
-            <span className="text-purple-300">Phrase B (Variation)</span>
+            <span className="text-zinc-500 font-bold">STRUCTURE:</span>
+            <span>Theme Loop (Bars 1-4)</span>
+            {barsCount >= 8 && (
+              <>
+                <ChevronRight className="h-2.5 w-2.5 text-zinc-600" />
+                <span className="text-purple-300 font-bold">Bar 8 (Unique Turnaround)</span>
+              </>
+            )}
             {barsCount === 16 && (
               <>
                 <ChevronRight className="h-2.5 w-2.5 text-zinc-600" />
-                <span className="text-amber-300">Phrase C (Bridge)</span>
+                <span className="text-amber-300 font-bold">Bars 11–12 (Unique Bridge)</span>
                 <ChevronRight className="h-2.5 w-2.5 text-zinc-600" />
-                <span className="text-emerald-300">Phrase D (Climax)</span>
+                <span className="text-emerald-300 font-bold">Bar 16 (Unique Climax)</span>
               </>
             )}
           </div>
           <div className="text-zinc-500">
-            VARIATION SEED #{variationSeed} · ZERO REPETITION MODE ACTIVE
+            VARIATION SEED #{variationSeed} · KEY: {scaleName.toUpperCase()}
           </div>
         </div>
       </div>
