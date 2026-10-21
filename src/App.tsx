@@ -1,4 +1,3 @@
-```react
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import {
   EDM_TAXONOMY,
