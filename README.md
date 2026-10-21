@@ -7,7 +7,7 @@
 
 V0.1.2 contains bug fixes mainly for the chord progression generation, plus you can now chop chords with a single dial, you can also now create arpeggios with the click of a button or two. additionally the piano roll is now editable!
 
-## New Themes:
+## Choose Your Theme and then make sweet beautiful music:
 Astral Aurora Uplifting Trance
 <img width="2877" height="1712" alt="image" src="https://github.com/user-attachments/assets/08104459-1327-49af-88c7-7c636b29d8ed" />
 Neon Mirage Synthwave
