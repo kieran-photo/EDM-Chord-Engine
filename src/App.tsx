@@ -1,3 +1,4 @@
+/*this is the main entry point for the React application, where the App component is defined and rendered. It imports necessary dependencies, defines themes, and sets up the main structure of the application.*/
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import {
   EDM_TAXONOMY,
