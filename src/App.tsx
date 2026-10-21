@@ -195,18 +195,32 @@ import {
    };
   
       const chords: { roman: string; notes: number[] }[] = [];
+           let step: { deg: number; ext: number[]; roman: string };
 
-      for (let b = 0; b < barsCount; b++) {
-        let step: { deg: number; ext: number[]; roman: string };
+     // Apply musical turnarounds on bars 8 (idx 7), 12 (idx 11), and 16 (idx 15)
+     if (b === 7 || b === 11 || b === 15) {
+       step = getTurnaroundStep(b);
+     } else {
+       step = baseProg[b % baseProg.length];
+     }
 
-        // Apply musical turnarounds on bars 8 (idx 7), 12 (idx 11), and 16 (idx 15)
-        if (b === 7 || b === 11 || b === 15) {
-          step = getTurnaroundStep(b);
-        } else {
-          step = baseProg[b % baseProg.length];
+
+      chords.push(buildStep(step.deg, step.ext, step.roman));
+  
+        const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
+        const notes = step.ext.slice(0, maxNotes).map((ext) => rootMidi + ext);
+  
+        // Voicing
+        if (voicing === "Open" && notes.length >= 3) {
+          notes[1] += 12;
+        } else if (voicing === "Drop 2" && notes.length >= 4) {
+          notes[notes.length - 2] -= 12;
+        } else if (voicing === "Inversion 1" && notes.length >= 2) {
+          notes[0] += 12;
         }
-
-        chords.push(buildStep(step.deg, step.ext, step.roman));
+  
+        notes.sort((a, b) => a - b);
+        chords.push({ roman: step.roman, notes });
       }
       return chords;
     }, [currentSubgenreName, keyRootMidi, scaleName, barsCount, variationSeed, complexity, voicing]);
@@ -479,10 +493,4 @@ import {
   
             <div className="flex items-center gap-1 shrink-0 flex-nowrap">
               {/* Key / Scale / Bars */}
-              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] whitespace"></div>
-            </div>
-          </div>
-       </div>
-      </div>
-    );
-  }
+              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] whitespace
