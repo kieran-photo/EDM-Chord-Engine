@@ -50,4 +50,4 @@ Down-Up (Reverse)
 
 
 
-**Link to test EDM Chord Engine Web Edition:** [https://edmchordengine.netlify.app](https://edmchordengine.netlify.app/)
+**Use EDM Chord Engine Web Edition For FREE:** [https://edmchordengine.netlify.app](https://edmchordengine.netlify.app/)
