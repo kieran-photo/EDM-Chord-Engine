@@ -149,11 +149,63 @@ import {
       const rawList = GENRE_THEORY_PROGRESSIONS[currentSubgenreName] || DEFAULT_THEORY_PROGRESSIONS;
       const baseProg = rawList[variationSeed % rawList.length] || DEFAULT_THEORY_PROGRESSIONS[0];
       const scale = SCALE_DEGREES[scaleName] || SCALE_DEGREES.Minor;
+
+   // Helper to generate a single chord step given degree, extension, and roman numeral
+   const buildStep = (deg: number, ext: number[], roman: string) => {
+     const rootMidi = keyRootMidi + (scale[deg % 7] || 0);
+     const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
+     const notes = ext.slice(0, maxNotes).map((e) => rootMidi + e);
+
+     // Voicing adjustments
+     if (voicing === "Open" && notes.length >= 3) {
+       notes[1] += 12;
+     } else if (voicing === "Drop 2" && notes.length >= 4) {
+       notes[notes.length - 2] -= 12;
+     } else if (voicing === "Inversion 1" && notes.length >= 2) {
+       notes[0] += 12;
+     }
+
+     notes.sort((a, b) => a - b);
+     return { roman, notes };
+   };
+
+   // Turnaround chord definitions based on music theory / scale mode
+   const getTurnaroundStep = (barIndex: number): { deg: number; ext: number[]; roman: string } => {
+     const isMinor = scaleName.toLowerCase().includes("minor") || scaleName.toLowerCase().includes("dorian") || scaleName.toLowerCase().includes("phrygian");
+
+     if (barIndex === 7) {
+       // Bar 8: Dominant V7 or V9 cadence leading back to Tonic i / I
+       return isMinor
+         ? { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V7" }
+         : { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V9" };
+     }
+     if (barIndex === 11) {
+       // Bar 12: Subdominant / Secondary tension (iv7 or IVmaj7)
+       return isMinor
+         ? { deg: 3, ext: [0, 3, 7, 10, 14], roman: "iv7" }
+         : { deg: 3, ext: [0, 4, 7, 11, 14], roman: "IVmaj7" };
+     }
+     if (barIndex === 15) {
+       // Bar 16: Final resolution turnaround (VII7 / V7alt tension)
+       return isMinor
+         ? { deg: 6, ext: [0, 4, 7, 10], roman: "VII7" }
+         : { deg: 4, ext: [0, 4, 7, 10, 13], roman: "V7(b9)" };
+     }
+     return { deg: 4, ext: [0, 4, 7, 10], roman: "V" };
+   };
   
       const chords: { roman: string; notes: number[] }[] = [];
-      for (let b = 0; b < barsCount; b++) {
-        const step = baseProg[b % baseProg.length];
-        const rootMidi = keyRootMidi + (scale[step.deg % 7] || 0);
+           let step: { deg: number; ext: number[]; roman: string };
+
+     // Apply musical turnarounds on bars 8 (idx 7), 12 (idx 11), and 16 (idx 15)
+     if (b === 7 || b === 11 || b === 15) {
+       step = getTurnaroundStep(b);
+     } else {
+       step = baseProg[b % baseProg.length];
+     }
+
+
+      chords.push(buildStep(step.deg, step.ext, step.roman));
   
         const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
         const notes = step.ext.slice(0, maxNotes).map((ext) => rootMidi + ext);
