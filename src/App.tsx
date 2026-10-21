@@ -150,49 +150,52 @@ import {
       const baseProg = rawList[variationSeed % rawList.length] || DEFAULT_THEORY_PROGRESSIONS[0];
       const scale = SCALE_DEGREES[scaleName] || SCALE_DEGREES.Minor;
 
-      // Helper to generate a single chord step given degree, extension, and roman numeral
-      const buildStep = (deg: number, ext: number[], roman: string) => {
-        const rootMidi = keyRootMidi + (scale[deg % 7] || 0);
-        const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
-        const notes = ext.slice(0, maxNotes).map((e) => rootMidi + e);
+   // Helper to generate a single chord step given degree, extension, and roman numeral
+   const buildStep = (deg: number, ext: number[], roman: string) => {
+     const rootMidi = keyRootMidi + (scale[deg % 7] || 0);
+     const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
+     const notes = ext.slice(0, maxNotes).map((e) => rootMidi + e);
 
-        // Voicing adjustments
-        if (voicing === "Open" && notes.length >= 3) {
-          notes[1] += 12;
-        } else if (voicing === "Drop 2" && notes.length >= 4) {
-          notes[notes.length - 2] -= 12;
-        } else if (voicing === "Inversion 1" && notes.length >= 2) {
-          notes[0] += 12;
-        }
+     // Voicing adjustments
+     if (voicing === "Open" && notes.length >= 3) {
+       notes[1] += 12;
+     } else if (voicing === "Drop 2" && notes.length >= 4) {
+       notes[notes.length - 2] -= 12;
+     } else if (voicing === "Inversion 1" && notes.length >= 2) {
+       notes[0] += 12;
+     }
 
-        notes.sort((a, b) => a - b);
-        return { roman, notes };
-      };
+     notes.sort((a, b) => a - b);
+     return { roman, notes };
+   };
 
-      // Turnaround chord definitions based on music theory / scale mode
-      const getTurnaroundStep = (barIndex: number): { deg: number; ext: number[]; roman: string } => {
-        const isMinor = scaleName.toLowerCase().includes("minor") || scaleName.toLowerCase().includes("dorian") || scaleName.toLowerCase().includes("phrygian");
+   // Turnaround chord definitions based on music theory / scale mode
+   const getTurnaroundStep = (barIndex: number): { deg: number; ext: number[]; roman: string } => {
+     const isMinor = scaleName.toLowerCase().includes("minor") || scaleName.toLowerCase().includes("dorian") || scaleName.toLowerCase().includes("phrygian");
 
-        if (barIndex === 7) {
-          return isMinor
-            ? { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V7" }
-            : { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V9" };
-        }
-        if (barIndex === 11) {
-          return isMinor
-            ? { deg: 3, ext: [0, 3, 7, 10, 14], roman: "iv7" }
-            : { deg: 3, ext: [0, 4, 7, 11, 14], roman: "IVmaj7" };
-        }
-        if (barIndex === 15) {
-          return isMinor
-            ? { deg: 6, ext: [0, 4, 7, 10], roman: "VII7" }
-            : { deg: 4, ext: [0, 4, 7, 10, 13], roman: "V7(b9)" };
-        }
-        return { deg: 4, ext: [0, 4, 7, 10], roman: "V" };
-      };
+     if (barIndex === 7) {
+       // Bar 8: Dominant V7 or V9 cadence leading back to Tonic i / I
+       return isMinor
+         ? { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V7" }
+         : { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V9" };
+     }
+     if (barIndex === 11) {
+       // Bar 12: Subdominant / Secondary tension (iv7 or IVmaj7)
+       return isMinor
+         ? { deg: 3, ext: [0, 3, 7, 10, 14], roman: "iv7" }
+         : { deg: 3, ext: [0, 4, 7, 11, 14], roman: "IVmaj7" };
+     }
+     if (barIndex === 15) {
+       // Bar 16: Final resolution turnaround (VII7 / V7alt tension)
+       return isMinor
+         ? { deg: 6, ext: [0, 4, 7, 10], roman: "VII7" }
+         : { deg: 4, ext: [0, 4, 7, 10, 13], roman: "V7(b9)" };
+     }
+     return { deg: 4, ext: [0, 4, 7, 10], roman: "V" };
+   };
   
       const chords: { roman: string; notes: number[] }[] = [];
-      
+
       for (let b = 0; b < barsCount; b++) {
         let step: { deg: number; ext: number[]; roman: string };
 
@@ -239,6 +242,7 @@ import {
           const noteStart = chordStart + (nIdx * (strumMs * 0.001));
   
           if (soundType === "Guitar") {
+            // Plucked string approximation
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = "triangle";
@@ -252,6 +256,7 @@ import {
             osc.stop(noteStart + chordDuration);
             activeNodesRef.current.push(osc);
           } else if (soundType === "Piano") {
+            // Dual sine acoustic hammer
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -271,6 +276,7 @@ import {
             osc2.stop(noteStart + chordDuration);
             activeNodesRef.current.push(osc1, osc2);
           } else {
+            // Dual Detuned Supersaw Synth
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const filter = ctx.createBiquadFilter();
@@ -304,7 +310,7 @@ import {
       }, totalDuration * 1000);
     };
   
-    // Export Audio (WAV audio container)
+    // Export Audio (WAV / MP3 audio container)
     const downloadAudio = (isMp3: boolean) => {
       const sampleRate = 44100;
       const tempo = 128;
@@ -398,8 +404,8 @@ import {
     const downloadMidi = () => {
       const ticksPerBar = 1920;
       const trackBytes: number[] = [
-        0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20,
-        0x00, 0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08,
+        0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20, // 128 bpm
+        0x00, 0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08, // 4/4
       ];
   
       const events: { tick: number; status: number; pitch: number; vel: number }[] = [];
@@ -416,6 +422,7 @@ import {
       let curTick = 0;
       events.forEach((ev) => {
         let delta = ev.tick - curTick;
+        // encode var len
         let buf = delta & 0x7f;
         while ((delta >>= 7) > 0) {
           buf <<= 8;
@@ -453,7 +460,7 @@ import {
   
     return (
       <div className={`min-h-screen w-full flex flex-col items-center justify-center p-4 md:p-8 font-sans select-none text-zinc-100 bg-linear-to-b ${currentTheme.bgGradient}`}>
-        <div className={`w-full max-w-6xl rounded-2xl border ${currentTheme.cardBorder} bg-black/70 p-5 md:p-6 shadow-2xl flex flex-col gap-4 backdrop-blur-md`}>
+       <div className={`w-full max-w-6xl rounded-2xl border ${currentTheme.cardBorder} bg-black/70 p-5 md:p-6 shadow-2xl flex flex-col gap-4 backdrop-blur-md`}>
           {/* Top Header Controls (Single-Line Compact Strip) */}
           <div className="flex h-10 items-center justify-between border-b border-zinc-800 pb-2 gap-1.5 flex-nowrap">
             <div className="flex items-center gap-1.5 shrink-0">
@@ -471,168 +478,11 @@ import {
             </div>
   
             <div className="flex items-center gap-1 shrink-0 flex-nowrap">
-              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300">
-                <Music className="h-3 w-3 text-zinc-400" />
-                <span className="font-medium">Key:</span>
-                <select 
-                  className="bg-transparent text-white font-bold outline-none cursor-pointer"
-                  value={keyIdx}
-                  onChange={(e) => setKeyIdx(Number(e.target.value))}
-                >
-                  {NOTE_NAMES.map((name, idx) => (
-                    <option key={name} value={idx} className="bg-zinc-900 text-white">{name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300">
-                <Sliders className="h-3 w-3 text-zinc-400" />
-                <span className="font-medium">Scale:</span>
-                <select 
-                  className="bg-transparent text-white font-bold outline-none cursor-pointer"
-                  value={scaleName}
-                  onChange={(e) => setScaleName(e.target.value)}
-                >
-                  {Object.keys(SCALE_DEGREES).map((sc) => (
-                    <option key={sc} value={sc} className="bg-zinc-900 text-white">{sc}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300">
-                <Activity className="h-3 w-3 text-zinc-400" />
-                <span className="font-medium">Bars:</span>
-                <select 
-                  className="bg-transparent text-white font-bold outline-none cursor-pointer"
-                  value={barsCount}
-                  onChange={(e) => setBarsCount(Number(e.target.value) as 4 | 8 | 16)}
-                >
-                  <option value={4} className="bg-zinc-900 text-white">4 Bars</option>
-                  <option value={8} className="bg-zinc-900 text-white">8 Bars</option>
-                  <option value={16} className="bg-zinc-900 text-white">16 Bars</option>
-                </select>
-              </div>
+              {/* Key / Scale / Bars */}
+              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] whitespace"></div>
             </div>
           </div>
-
-          {/* Genre / Subgenre Selection Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className={`p-3 rounded-xl border border-zinc-800 ${currentTheme.panelBg} flex flex-col gap-2`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400">EDM Genre Category</span>
-                <span className={`text-[10px] font-bold ${currentTheme.headerAccent}`}>{currentGenreData.category}</span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {EDM_TAXONOMY.map((genre, gIdx) => (
-                  <button
-                    key={genre.category}
-                    onClick={() => { setGenreIdx(gIdx); setSubgenreIdx(0); }}
-                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${genreIdx === gIdx ? `${currentTheme.badge} text-white font-bold` : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
-                  >
-                    {genre.category}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={`p-3 rounded-xl border border-zinc-800 ${currentTheme.panelBg} flex flex-col gap-2`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400">Subgenre Style</span>
-                <span className={`text-[10px] font-bold ${currentTheme.accentText}`}>{currentSubgenreName}</span>
-              </div>
-              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
-                {currentSubgenres.map((sub, sIdx) => (
-                  <button
-                    key={sub}
-                    onClick={() => setSubgenreIdx(sIdx)}
-                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${subgenreIdx === sIdx ? `${currentTheme.badge} text-white font-bold` : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
-                  >
-                    {sub}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Chord Progression Display / Piano Roll Grid */}
-          <div className={`p-4 rounded-xl border border-zinc-800 ${currentTheme.pianoRollBg} flex flex-col gap-3 shadow-inner`}>
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
-              <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-zinc-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">Generated Chord Progression ({barsCount} Bars)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setVariationSeed(Math.floor(Math.random() * 10000))}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-[10px] font-medium transition-all text-zinc-200"
-                >
-                  <Dices className="h-3 w-3 text-cyan-400" />
-                  <span>Randomize</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-2">
-              {progressionChords.map((chord, idx) => (
-                <div key={idx} className={`p-2.5 rounded-lg border ${currentTheme.chordCardBorder} ${currentTheme.chordCardBg} flex flex-col gap-1.5 relative overflow-hidden group shadow`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono text-zinc-400">Bar {idx + 1}</span>
-                    <span className={`text-[10px] font-extrabold ${currentTheme.headerAccent}`}>{chord.roman}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {chord.notes.map((midi, nIdx) => (
-                      <div key={nIdx} className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-linear-to-r ${currentTheme.noteGradient} text-black`}>
-                        {midiToName ? midiToName(midi) : midi}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom Action Controls & Export */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-800">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={isPlaying ? stopAudio : playAudio}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shadow-lg transition-all ${isPlaying ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/40' : 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-cyan-900/40'}`}
-              >
-                {isPlaying ? <Square className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
-                <span>{isPlaying ? "Stop Preview" : "Play Progression"}</span>
-              </button>
-
-              <div className="flex items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1 text-xs">
-                {(["Synth", "Piano", "Guitar"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSoundType(s)}
-                    className={`px-3 py-1 rounded-lg font-medium transition-all ${soundType === s ? 'bg-zinc-800 text-white font-bold shadow' : 'text-zinc-400 hover:text-zinc-200'}`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => downloadAudio(false)}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition-all shadow"
-              >
-                <FileAudio className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Export WAV</span>
-              </button>
-              <button
-                onClick={downloadMidi}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition-all shadow"
-              >
-                <FileCode className="h-3.5 w-3.5 text-cyan-400" />
-                <span>Export MIDI</span>
-              </button>
-            </div>
-          </div>
-        </div>
+       </div>
       </div>
     );
   }
