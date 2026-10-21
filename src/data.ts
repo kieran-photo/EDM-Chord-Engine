@@ -141,11 +141,12 @@ export interface TheoryChord {
 
 export interface GeneratedChord {
   bar: number;
-  phrase: "A" | "B" | "C" | "D";
+  phrase: "THEME" | "VAR 8" | "VAR 11" | "VAR 12" | "VAR 16";
   roman: string;
   chordName: string;
   functionTag: string;
   notes: number[];
+  isUnique?: boolean;
 }
 
 // Deterministic PRNG using Mulberry32 for smooth, uniform pseudo-random distributions
@@ -226,10 +227,6 @@ export function getHarmonicStyle(subgenre: string, genre: string): HarmonicStyle
   return "ANTHEMIC_PROGRESSIVE";
 }
 
-/**
- * Chord Template definition:
- * Semitone intervals above the chord's root, roman numeral, and descriptive function.
- */
 interface ChordOption {
   roman: string;
   nameSuffix: string;
@@ -237,75 +234,40 @@ interface ChordOption {
   functionTag: string;
 }
 
-/**
- * Comprehensive Harmonic Grammar:
- * Defines valid roots, phrase-specific start & cadence rules, Markov transitions,
- * and chord quality choices for each genre family.
- */
-interface HarmonicGrammar {
-  phraseAStarts: number[];
-  phraseACadences: number[];
-  phraseBStarts: number[];
-  phraseBCadences: number[];
-  phraseCStarts: number[];
-  phraseCCadences: number[];
-  phraseDStarts: number[];
-  phraseDCadences: number[];
-  transitions: Record<number, number[]>;
-  vocab: Record<number, ChordOption[]>;
-}
+// ==========================================
+// Scale-Specific Chord Vocabularies
+// ==========================================
 
-// Master Vocabulary of musically sound chord voicings across scale degrees (semitones: 0=Tonic, 1=bII, 2=ii, 3=bIII, 4=iii, 5=iv/IV, 7=v/V, 8=bVI, 9=vi, 10=bVII, 11=vii°)
-const UNIVERSAL_VOCAB: Record<number, ChordOption[]> = {
-  // Degree 0 (Tonic: i or I)
+// 1. Natural Minor Mode Vocabulary (0=i, 2=ii°, 3=bIII, 5=iv, 7=v/V, 8=bVI, 10=bVII, 1=bII)
+const MINOR_VOCAB: Record<number, ChordOption[]> = {
   0: [
-    { roman: "i9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Deep Minor 9th" },
-    { roman: "i11", nameSuffix: "m11", intervals: [0, 3, 7, 10, 14, 17], functionTag: "Lush Minor 11th" },
+    { roman: "i9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Minor Tonic 9th" },
+    { roman: "i11", nameSuffix: "m11", intervals: [0, 3, 7, 10, 14, 17], functionTag: "Deep Minor 11th" },
     { roman: "i(add9)", nameSuffix: "m(add9)", intervals: [0, 3, 7, 14], functionTag: "Anthem Minor Add9" },
     { roman: "i7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Soul Minor 7th" },
-    { roman: "i", nameSuffix: "m", intervals: [0, 3, 7, 12], functionTag: "Pure Minor Tonic" },
-    { roman: "Imaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Major Sunlight 9th" },
-    { roman: "Imaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Major Tonic Seventh" },
-    { roman: "I(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Bright Major Add9" },
+    { roman: "i", nameSuffix: "m", intervals: [0, 3, 7, 12], functionTag: "Natural Minor Tonic" },
   ],
-  // Degree 1 (bII: Phrygian / Neapolitan modal interchange)
   1: [
-    { roman: "bIImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Neapolitan Phrygian" },
-    { roman: "bII(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Phrygian Add9" },
-    { roman: "bII5", nameSuffix: "5", intervals: [0, 7, 12], functionTag: "Industrial Phrygian 5" },
-    { roman: "bII", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Heavy bII Step" },
+    { roman: "bIImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Neapolitan bII" },
+    { roman: "bII(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Phrygian bII Add9" },
   ],
-  // Degree 2 (ii or iiø: Supertonic)
   2: [
     { roman: "iiø7", nameSuffix: "m7b5", intervals: [0, 3, 6, 10], functionTag: "Half-Diminished ii" },
-    { roman: "ii9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Jazz ii Minor 9th" },
-    { roman: "ii11", nameSuffix: "m11", intervals: [0, 3, 7, 10, 14, 17], functionTag: "Silky ii 11th" },
-    { roman: "ii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Soul Minor ii" },
+    { roman: "ii9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Jazz ii 9th" },
+    { roman: "ii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Minor ii" },
   ],
-  // Degree 3 (bIII: Mediant / Relative Major)
   3: [
     { roman: "bIIImaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Relative Major 9th" },
     { roman: "bIIImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Warm Relative Major" },
     { roman: "bIII(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Sunlight Add9" },
     { roman: "bIII", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Relative Major Anthem" },
   ],
-  // Degree 4 (iii: Major Key Mediant)
-  4: [
-    { roman: "iii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Sentimental Mediant" },
-    { roman: "iii9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Lush Mediant 9th" },
-  ],
-  // Degree 5 (iv or IV: Subdominant)
   5: [
-    { roman: "iv9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Deep Subdominant 9th" },
-    { roman: "iv11", nameSuffix: "m11", intervals: [0, 3, 7, 10, 14, 17], functionTag: "Lush Subdominant 11th" },
+    { roman: "iv9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Minor Subdominant 9th" },
+    { roman: "iv11", nameSuffix: "m11", intervals: [0, 3, 7, 10, 14, 17], functionTag: "Deep Subdominant 11th" },
     { roman: "iv(add9)", nameSuffix: "m(add9)", intervals: [0, 3, 7, 14], functionTag: "Emotional Minor Sub" },
     { roman: "iv7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Classic Minor Sub" },
-    { roman: "IVmaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Kawaii Subdominant" },
-    { roman: "IVmaj7(#11)", nameSuffix: "maj7(#11)", intervals: [0, 4, 7, 11, 18], functionTag: "Lydian Magic Sub" },
-    { roman: "IVmaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Major Subdominant" },
-    { roman: "iv6", nameSuffix: "m6", intervals: [0, 3, 7, 9], functionTag: "Gospel Borrowed Sub" },
   ],
-  // Degree 7 (v or V: Dominant)
   7: [
     { roman: "v7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Modal Minor Dominant" },
     { roman: "v9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Mellow Dominant 9th" },
@@ -313,44 +275,148 @@ const UNIVERSAL_VOCAB: Record<number, ChordOption[]> = {
     { roman: "V7(b9)", nameSuffix: "7(b9)", intervals: [0, 4, 7, 10, 13], functionTag: "Altered Dominant" },
     { roman: "V7sus4", nameSuffix: "7sus4", intervals: [0, 5, 7, 10], functionTag: "Suspension Turnaround" },
     { roman: "V7alt", nameSuffix: "7alt", intervals: [0, 4, 10, 13, 15], functionTag: "Jazz Altered Turn" },
-    { roman: "V9", nameSuffix: "9", intervals: [0, 4, 7, 10, 14], functionTag: "Dominant 9th" },
-    { roman: "V13", nameSuffix: "13", intervals: [0, 4, 7, 10, 14, 21], functionTag: "Extended Dominant" },
   ],
-  // Degree 8 (bVI: Submediant)
   8: [
-    { roman: "bVImaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Silky Submediant 9th" },
+    { roman: "bVImaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Submediant Maj9" },
     { roman: "bVImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Warm Submediant" },
     { roman: "bVI(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Euphoric Lift" },
-    { roman: "bVI6/9", nameSuffix: "6/9", intervals: [0, 4, 7, 9, 14], functionTag: "Jazzy 6/9" },
     { roman: "bVI", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Anthem Major Sixth" },
   ],
-  // Degree 9 (vi: Submediant in Major key)
-  9: [
-    { roman: "vi9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Sweet Minor Sixth" },
-    { roman: "vi7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Relative Minor" },
-  ],
-  // Degree 10 (bVII: Subtonic)
   10: [
     { roman: "bVII13", nameSuffix: "13", intervals: [0, 4, 7, 10, 14, 21], functionTag: "Soul 13th Turn" },
     { roman: "bVII9", nameSuffix: "9", intervals: [0, 4, 7, 10, 14], functionTag: "Smooth 9th" },
     { roman: "bVII7", nameSuffix: "7", intervals: [0, 4, 7, 10], functionTag: "Dominant 7th Subtonic" },
     { roman: "bVII(sus4)", nameSuffix: "sus4", intervals: [0, 5, 7, 10], functionTag: "Suspended Turnaround" },
-    { roman: "bVII(sus2)", nameSuffix: "sus2", intervals: [0, 2, 7, 10], functionTag: "Open Sus2" },
     { roman: "bVII", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Subtonic Drive" },
   ],
 };
 
-// Generative Grammar Definitions tailored for each EDM Harmonic Style
-const GRAMMARS: Record<HarmonicStyle, HarmonicGrammar> = {
-  ANTHEMIC_PROGRESSIVE: {
-    phraseAStarts: [0, 8],
-    phraseACadences: [10, 7, 3],
-    phraseBStarts: [8, 5, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [5, 3, 8],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [8, 5],
-    phraseDCadences: [7, 0],
+// 2. Major Mode Vocabulary (0=I, 2=ii, 4=iii, 5=IV, 7=V, 9=vi, 11=vii°, 10=bVII borrowed, 5=iv borrowed)
+const MAJOR_VOCAB: Record<number, ChordOption[]> = {
+  0: [
+    { roman: "Imaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Major Tonic 9th" },
+    { roman: "Imaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Major Tonic Seventh" },
+    { roman: "I(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Bright Major Add9" },
+    { roman: "I", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Pure Major Tonic" },
+  ],
+  2: [
+    { roman: "ii9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Supertonic Minor 9th" },
+    { roman: "ii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Diatonic Minor ii" },
+    { roman: "ii11", nameSuffix: "m11", intervals: [0, 3, 7, 10, 14, 17], functionTag: "Silky ii 11th" },
+  ],
+  4: [
+    { roman: "iii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Mediant Minor 7th" },
+    { roman: "iii9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Lush Mediant 9th" },
+    { roman: "iii", nameSuffix: "m", intervals: [0, 3, 7, 12], functionTag: "Mediant Minor" },
+  ],
+  5: [
+    { roman: "IVmaj9", nameSuffix: "maj9", intervals: [0, 4, 7, 11, 14], functionTag: "Major Subdominant 9th" },
+    { roman: "IVmaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Major Subdominant 7th" },
+    { roman: "IV(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Sparkle Subdominant" },
+    { roman: "IV", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Subdominant Major" },
+    { roman: "iv6", nameSuffix: "m6", intervals: [0, 3, 7, 9], functionTag: "Gospel Borrowed Sub" },
+  ],
+  7: [
+    { roman: "V7", nameSuffix: "7", intervals: [0, 4, 7, 10], functionTag: "Dominant Seventh" },
+    { roman: "V9", nameSuffix: "9", intervals: [0, 4, 7, 10, 14], functionTag: "Dominant 9th" },
+    { roman: "V7sus4", nameSuffix: "7sus4", intervals: [0, 5, 7, 10], functionTag: "Suspended Dominant" },
+    { roman: "V13", nameSuffix: "13", intervals: [0, 4, 7, 10, 14, 21], functionTag: "Extended Dominant" },
+    { roman: "V", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Pure Dominant" },
+  ],
+  9: [
+    { roman: "vi9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Relative Minor 9th" },
+    { roman: "vi7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Relative Minor 7th" },
+    { roman: "vi(add9)", nameSuffix: "m(add9)", intervals: [0, 3, 7, 14], functionTag: "Sweet Sixth Add9" },
+    { roman: "vi", nameSuffix: "m", intervals: [0, 3, 7, 12], functionTag: "Relative Minor" },
+  ],
+  10: [
+    { roman: "bVII", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Mixolydian Borrowed" },
+    { roman: "bVII7", nameSuffix: "7", intervals: [0, 4, 7, 10], functionTag: "Borrowed Dominant 7" },
+    { roman: "bVII(sus4)", nameSuffix: "sus4", intervals: [0, 5, 7, 10], functionTag: "Mixolydian Sus4" },
+  ],
+  11: [
+    { roman: "viiø7", nameSuffix: "m7b5", intervals: [0, 3, 6, 10], functionTag: "Leading Tone Half-Dim" },
+  ],
+};
+
+// 3. Dorian Mode Vocabulary (Characteristic Major IV!)
+const DORIAN_VOCAB: Record<number, ChordOption[]> = {
+  0: [
+    { roman: "i9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Dorian Minor 9th" },
+    { roman: "i7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Dorian Minor 7th" },
+    { roman: "i(m6)", nameSuffix: "m6", intervals: [0, 3, 7, 9], functionTag: "Dorian Tonic 6th" },
+  ],
+  2: [
+    { roman: "ii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Dorian ii Minor" },
+  ],
+  3: [
+    { roman: "bIIImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Mediant Major 7th" },
+  ],
+  5: [
+    { roman: "IV7", nameSuffix: "7", intervals: [0, 4, 7, 10], functionTag: "Dorian Major IV (7)" },
+    { roman: "IV9", nameSuffix: "9", intervals: [0, 4, 7, 10, 14], functionTag: "Dorian Major IV 9th" },
+    { roman: "IV", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Characteristic Major IV" },
+  ],
+  7: [
+    { roman: "v7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Minor Dominant" },
+  ],
+  10: [
+    { roman: "bVIImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Dorian bVII Maj7" },
+    { roman: "bVII", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Subtonic Drive" },
+  ],
+};
+
+// 4. Phrygian Mode Vocabulary (Characteristic Major bII!)
+const PHRYGIAN_VOCAB: Record<number, ChordOption[]> = {
+  0: [
+    { roman: "i7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Phrygian Tonic 7th" },
+    { roman: "i", nameSuffix: "m", intervals: [0, 3, 7, 12], functionTag: "Dark Tonic Minor" },
+  ],
+  1: [
+    { roman: "bIImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Characteristic bII Maj7" },
+    { roman: "bII(add9)", nameSuffix: "(add9)", intervals: [0, 4, 7, 14], functionTag: "Bright bII Add9" },
+    { roman: "bII", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Phrygian bII Major" },
+  ],
+  5: [
+    { roman: "iv7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Minor Subdominant" },
+    { roman: "iv9", nameSuffix: "m9", intervals: [0, 3, 7, 10, 14], functionTag: "Deep Subdominant 9th" },
+  ],
+  7: [
+    { roman: "v°", nameSuffix: "dim", intervals: [0, 3, 6, 12], functionTag: "Diminished Fifth" },
+    { roman: "v7b5", nameSuffix: "m7b5", intervals: [0, 3, 6, 10], functionTag: "Half-Dim Dominant" },
+  ],
+  8: [
+    { roman: "bVImaj7", nameSuffix: "maj7", intervals: [0, 4, 7, 11], functionTag: "Phrygian Submediant" },
+    { roman: "bVI", nameSuffix: "", intervals: [0, 4, 7, 12], functionTag: "Major Sixth" },
+  ],
+  10: [
+    { roman: "bvii7", nameSuffix: "m7", intervals: [0, 3, 7, 10], functionTag: "Minor Subtonic" },
+  ],
+};
+
+// ==========================================
+// Scale-Specific Progression Grammars
+// ==========================================
+
+interface ScaleGrammar {
+  startRoots: number[];
+  cadenceRoots: number[];
+  var8Turnarounds: number[];
+  bridgeRootsA: number[];
+  bridgeRootsB: number[];
+  climaxRoots: number[];
+  transitions: Record<number, number[]>;
+  vocab: Record<number, ChordOption[]>;
+}
+
+const SCALE_GRAMMARS: Record<string, ScaleGrammar> = {
+  Minor: {
+    startRoots: [0, 8, 5],
+    cadenceRoots: [10, 7, 5],
+    var8Turnarounds: [7, 10, 2],
+    bridgeRootsA: [5, 2, 1, 3],
+    bridgeRootsB: [7, 8, 10],
+    climaxRoots: [7, 10, 1],
     transitions: {
       0: [8, 5, 3, 10],
       8: [10, 3, 5, 0],
@@ -358,223 +424,62 @@ const GRAMMARS: Record<HarmonicStyle, HarmonicGrammar> = {
       5: [7, 10, 8, 0],
       7: [0, 8, 10],
       10: [0, 8, 3, 7],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  DEEP_HOUSE_GARAGE: {
-    phraseAStarts: [0, 8, 5],
-    phraseACadences: [10, 7, 5],
-    phraseBStarts: [8, 5, 2, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [2, 5, 3],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [5, 8, 2],
-    phraseDCadences: [7, 10, 0],
-    transitions: {
-      0: [5, 8, 10, 2],
-      5: [7, 10, 8, 2],
-      7: [0, 8, 5],
-      8: [5, 7, 2, 10],
-      10: [0, 3, 5, 8],
       2: [7, 10, 0],
-      3: [5, 8, 10],
+      1: [0, 7, 8],
     },
-    vocab: UNIVERSAL_VOCAB,
+    vocab: MINOR_VOCAB,
   },
-  FUTURE_BASS_COLOR: {
-    phraseAStarts: [5, 0, 9],
-    phraseACadences: [7, 9, 0],
-    phraseBStarts: [2, 5, 8],
-    phraseBCadences: [7, 9, 0],
-    phraseCStarts: [5, 4, 8],
-    phraseCCadences: [7, 0],
-    phraseDStarts: [8, 5, 2],
-    phraseDCadences: [7, 0],
+  Major: {
+    startRoots: [0, 5, 9, 2],
+    cadenceRoots: [7, 5, 0],
+    var8Turnarounds: [7, 2, 10],
+    bridgeRootsA: [4, 2, 5],
+    bridgeRootsB: [7, 9, 5],
+    climaxRoots: [7, 10],
     transitions: {
-      5: [7, 0, 4, 9],
-      7: [4, 9, 0, 5],
-      4: [9, 5, 2],
+      0: [5, 7, 9, 2],
+      5: [7, 0, 9, 4],
+      7: [0, 9, 5],
       9: [5, 2, 7, 0],
       2: [7, 5, 0],
-      0: [5, 9, 8],
-      8: [10, 7, 0],
+      4: [9, 5, 2],
       10: [0, 5, 7],
     },
-    vocab: UNIVERSAL_VOCAB,
+    vocab: MAJOR_VOCAB,
   },
-  MELODIC_TECHNO: {
-    phraseAStarts: [0, 8],
-    phraseACadences: [7, 10, 5],
-    phraseBStarts: [8, 5, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [3, 5, 8],
-    phraseCCadences: [7, 5],
-    phraseDStarts: [8, 5],
-    phraseDCadences: [7, 0],
+  Dorian: {
+    startRoots: [0, 5],
+    cadenceRoots: [10, 7, 5],
+    var8Turnarounds: [5, 10, 7],
+    bridgeRootsA: [3, 2, 5],
+    bridgeRootsB: [10, 7, 0],
+    climaxRoots: [5, 10],
     transitions: {
-      0: [8, 5, 7, 10],
-      8: [5, 7, 10, 0],
-      5: [7, 8, 10, 0],
-      7: [0, 8, 5],
-      10: [0, 8, 7],
-      3: [5, 8, 7],
+      0: [5, 10, 3, 7],
+      5: [0, 10, 7, 2],
+      10: [0, 5, 3],
+      7: [0, 5],
+      3: [5, 10, 0],
+      2: [5, 7, 0],
     },
-    vocab: UNIVERSAL_VOCAB,
+    vocab: DORIAN_VOCAB,
   },
-  DARK_INDUSTRIAL_TECHNO: {
-    phraseAStarts: [0, 1],
-    phraseACadences: [10, 7, 1],
-    phraseBStarts: [8, 1, 5],
-    phraseBCadences: [7, 1, 0],
-    phraseCStarts: [5, 1, 8],
-    phraseCCadences: [7, 1],
-    phraseDStarts: [1, 8],
-    phraseDCadences: [7, 0],
+  Phrygian: {
+    startRoots: [0, 1],
+    cadenceRoots: [1, 7, 10],
+    var8Turnarounds: [1, 7],
+    bridgeRootsA: [5, 8, 1],
+    bridgeRootsB: [7, 1, 0],
+    climaxRoots: [1, 7],
     transitions: {
-      0: [1, 8, 10, 5],
-      1: [0, 8, 7, 5],
-      8: [1, 5, 7, 10],
-      5: [7, 1, 0],
-      7: [0, 1, 8],
+      0: [1, 8, 5, 10],
+      1: [0, 5, 7, 8],
+      5: [1, 7, 8, 0],
+      8: [1, 5, 0],
       10: [0, 1, 8],
+      7: [0, 1],
     },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  LIQUID_DNB: {
-    phraseAStarts: [0, 5, 8],
-    phraseACadences: [10, 7, 3],
-    phraseBStarts: [8, 5, 2, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [5, 2, 3],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [2, 5, 8],
-    phraseDCadences: [7, 0],
-    transitions: {
-      0: [5, 8, 10, 3],
-      5: [10, 7, 8, 2],
-      10: [3, 0, 8, 5],
-      3: [8, 5, 10, 7],
-      8: [5, 7, 2, 10],
-      7: [0, 8, 5],
-      2: [7, 10, 0],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  DARK_DNB_DUBSTEP: {
-    phraseAStarts: [0, 8, 1],
-    phraseACadences: [10, 7, 1],
-    phraseBStarts: [1, 8, 5],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [5, 1, 3],
-    phraseCCadences: [7, 1],
-    phraseDStarts: [8, 1, 5],
-    phraseDCadences: [7, 0],
-    transitions: {
-      0: [8, 1, 5, 10],
-      8: [1, 5, 10, 7],
-      1: [0, 8, 7, 5],
-      5: [7, 1, 8, 0],
-      10: [0, 8, 1],
-      7: [0, 1, 8],
-      3: [5, 8, 7],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  SYNTHWAVE_RETRO: {
-    phraseAStarts: [0, 8],
-    phraseACadences: [10, 7, 0],
-    phraseBStarts: [5, 8, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [8, 3, 5],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [8, 5],
-    phraseDCadences: [7, 0],
-    transitions: {
-      0: [8, 10, 5, 3],
-      8: [10, 3, 5, 0],
-      10: [0, 8, 3, 7],
-      5: [10, 7, 8, 0],
-      3: [5, 8, 10, 7],
-      7: [0, 8, 10],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  FUNK_DISCO: {
-    phraseAStarts: [2, 0, 5],
-    phraseACadences: [7, 9, 0],
-    phraseBStarts: [5, 2, 9],
-    phraseBCadences: [7, 0],
-    phraseCStarts: [9, 2, 5],
-    phraseCCadences: [7, 0],
-    phraseDStarts: [5, 2],
-    phraseDCadences: [7, 0],
-    transitions: {
-      2: [7, 0, 5],
-      7: [0, 9, 5],
-      0: [9, 5, 2],
-      9: [2, 5, 7],
-      5: [4, 7, 2, 0],
-      4: [2, 7, 9],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  CHILL_LOFI_AMBIENT: {
-    phraseAStarts: [0, 5, 8],
-    phraseACadences: [10, 7, 3],
-    phraseBStarts: [8, 5, 2, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [3, 5, 8],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [8, 2, 5],
-    phraseDCadences: [7, 0],
-    transitions: {
-      0: [5, 8, 10, 2],
-      5: [7, 10, 8, 3],
-      7: [0, 8, 5],
-      10: [3, 0, 8, 5],
-      3: [5, 8, 7],
-      8: [5, 7, 2, 0],
-      2: [7, 10, 0],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  HARDSTYLE_HARDCORE: {
-    phraseAStarts: [0, 8],
-    phraseACadences: [10, 7],
-    phraseBStarts: [5, 8, 3],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [3, 5, 8],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [8, 5],
-    phraseDCadences: [7, 0],
-    transitions: {
-      0: [8, 3, 10, 5],
-      8: [10, 3, 5, 0],
-      3: [10, 5, 8, 7],
-      10: [0, 8, 7],
-      5: [8, 10, 7, 0],
-      7: [0, 8],
-    },
-    vocab: UNIVERSAL_VOCAB,
-  },
-  BREAKS_CLUB: {
-    phraseAStarts: [0, 8],
-    phraseACadences: [10, 7, 5],
-    phraseBStarts: [8, 5, 0],
-    phraseBCadences: [7, 10, 0],
-    phraseCStarts: [3, 5, 8],
-    phraseCCadences: [7, 10],
-    phraseDStarts: [8, 5],
-    phraseDCadences: [7, 0],
-    transitions: {
-      0: [8, 5, 10, 7],
-      8: [5, 10, 7, 0],
-      5: [10, 7, 8, 0],
-      10: [0, 8, 5, 7],
-      7: [0, 8, 5],
-      3: [5, 8, 7],
-    },
-    vocab: UNIVERSAL_VOCAB,
+    vocab: PHRYGIAN_VOCAB,
   },
 };
 
@@ -626,7 +531,6 @@ function voiceLeadChord(
     const prevCenter = previousUpperNotes.reduce((a, b) => a + b, 0) / previousUpperNotes.length;
     let currentCenter = upper.reduce((a, b) => a + b, 0) / upper.length;
 
-    // Shift entire chord by octave if it drifted too far away from previous center
     while (currentCenter - prevCenter > 6) {
       upper = upper.map((n) => n - 12);
       currentCenter -= 12;
@@ -637,34 +541,26 @@ function voiceLeadChord(
     }
   }
 
-  // Clamp within playable synthesizer pad range
   upper = upper.map((n) => Math.max(45, Math.min(79, n)));
-
   const fullChord = [bassNote, ...upper];
-  const unique = Array.from(new Set(fullChord)).sort((a, b) => a - b);
-  return unique;
+  return Array.from(new Set(fullChord)).sort((a, b) => a - b);
 }
 
-/**
- * Procedural Step Builder:
- * Given a chosen root semitone offset and style grammar, picks a musically sound chord quality using PRNG.
- */
 function pickChordForRoot(
   rootSemitone: number,
-  grammar: HarmonicGrammar,
+  vocab: Record<number, ChordOption[]>,
   rng: () => number
 ): ChordOption {
-  const options = grammar.vocab[rootSemitone] || UNIVERSAL_VOCAB[rootSemitone] || UNIVERSAL_VOCAB[0];
+  const options = vocab[rootSemitone] || MINOR_VOCAB[rootSemitone] || MINOR_VOCAB[0];
   const idx = Math.floor(rng() * options.length);
   return options[idx] || options[0];
 }
 
 /**
  * Main procedural generator:
- * Dynamically builds 4, 8, or 16-bar chord progressions using Markov transition graphs.
- * Each roll produces an entirely unique progression.
- * In 8-bar and 16-bar mode, Bars 5-8, 9-12, and 13-16 do NOT repeat previous bars.
- * Every single transition adheres to musical functional harmony and voice leading.
+ * Adapts strictly to selected scaleName (Major -> Major chord progression, Minor -> Minor progression, etc.).
+ * Only the 8th bar, 11th bar, 12th bar, and 16th bar are unique from the rest of the chord progression.
+ * Procedural PRNG seeded by genre/subgenre + user seed guarantees unlimited variations.
  */
 export function generateProceduralProgression(params: {
   subgenre: string;
@@ -672,122 +568,114 @@ export function generateProceduralProgression(params: {
   scaleName: string;
   barsCount: 4 | 8 | 16;
   seed: number;
-  complexity: string; // "Triads" | "7ths" | "9ths/11ths"
-  voicing: string; // "Close" | "Open" | "Drop 2" | "Inversion 1"
+  complexity: string;
+  voicing: string;
   keyRootMidi: number;
 }): GeneratedChord[] {
-  const { subgenre, genre, barsCount, seed, complexity, voicing, keyRootMidi } = params;
+  const { subgenre, genre, scaleName, barsCount, seed, complexity, voicing, keyRootMidi } = params;
 
-  const style = getHarmonicStyle(subgenre, genre);
-  const grammar = GRAMMARS[style] || GRAMMARS.ANTHEMIC_PROGRESSIVE;
+  // 1. Select the scale grammar based on chosen key type (Major, Minor, Dorian, Phrygian)
+  const grammar = SCALE_GRAMMARS[scaleName] || SCALE_GRAMMARS.Minor;
 
-  // Composite seed using subgenre string + user seed for unique character per subgenre
-  const genreHash = hashString(`${subgenre}_${genre}`);
+  // Composite seed using subgenre string + scale + user seed for unique character per subgenre
+  const genreHash = hashString(`${subgenre}_${genre}_${scaleName}`);
   const combinedSeed = (seed * 65537 + genreHash * 31) >>> 0;
   const rng = createPRNG(combinedSeed);
 
-  // Helper to pick from an array using rng
   const pick = (arr: number[]) => arr[Math.floor(rng() * arr.length)];
-
-  // Helper to get next transition root
   const nextRoot = (current: number, pool: number[]) => {
     const allowed = grammar.transitions[current] || pool;
-    // Prefer transitions that don't just stay on the same root
     const candidates = allowed.filter((r) => r !== current);
     return pick(candidates.length > 0 ? candidates : allowed);
   };
 
-  // --- 1. BUILD PHRASE A (Bars 1-4: Exposition / Theme) ---
-  const a1 = pick(grammar.phraseAStarts);
-  const a2 = nextRoot(a1, grammar.transitions[a1] || [8, 5, 10]);
-  const a3 = nextRoot(a2, grammar.transitions[a2] || [5, 10, 7]);
-  // Bar 4 must be a half-cadence or open turnaround
-  let a4 = pick(grammar.phraseACadences);
-  if (a4 === a3) a4 = pick(grammar.phraseACadences.filter((c) => c !== a3)) || a4;
+  // --- Step 1: Generate the Core 4-Bar Theme (Bars 1, 2, 3, 4) ---
+  const t0 = pick(grammar.startRoots);
+  const t1 = nextRoot(t0, grammar.transitions[t0] || [5, 7, 8]);
+  const t2 = nextRoot(t1, grammar.transitions[t1] || [7, 8, 10]);
+  let t3 = pick(grammar.cadenceRoots);
+  if (t3 === t2) t3 = pick(grammar.cadenceRoots.filter((c) => c !== t2)) || t3;
 
-  const phraseARoots = [a1, a2, a3, a4];
+  const themeRoots = [t0, t1, t2, t3];
+  const themeChords = themeRoots.map((root) => pickChordForRoot(root, grammar.vocab, rng));
 
-  // --- 2. BUILD PHRASE B (Bars 5-8: Varied Response & Authentic Cadence) ---
-  // Bar 5 MUST contrast with Bar 1!
-  const b1Candidates = grammar.phraseBStarts.filter((r) => r !== a1);
-  const b1 = pick(b1Candidates.length > 0 ? b1Candidates : grammar.phraseBStarts);
-  const b2 = nextRoot(b1, grammar.transitions[b1] || [7, 10, 8]);
-  const b3 = nextRoot(b2, grammar.transitions[b2] || [8, 5, 2]);
-  // Bar 8 must be an authentic cadence or definitive turnaround
-  let b4 = pick(grammar.phraseBCadences);
-  if (b4 === b3) b4 = pick(grammar.phraseBCadences.filter((c) => c !== b3)) || b4;
+  // --- Step 2: Generate the UNIQUE Bar 8 Turnaround Chord ---
+  const var8Candidates = grammar.var8Turnarounds.filter((r) => r !== t3);
+  const var8Root = pick(var8Candidates.length > 0 ? var8Candidates : grammar.var8Turnarounds);
+  const var8Chord = pickChordForRoot(var8Root, grammar.vocab, rng);
 
-  let phraseBRoots = [b1, b2, b3, b4];
+  // --- Step 3: Generate the UNIQUE Bar 11 (Bridge Departure Chord A) ---
+  const var11Candidates = grammar.bridgeRootsA.filter((r) => r !== t0 && r !== t1);
+  const var11Root = pick(var11Candidates.length > 0 ? var11Candidates : grammar.bridgeRootsA);
+  const var11Chord = pickChordForRoot(var11Root, grammar.vocab, rng);
 
-  // Strict check: Phrase B must NOT be identical to Phrase A
-  if (phraseBRoots.every((r, i) => r === phraseARoots[i])) {
-    phraseBRoots[0] = (phraseBRoots[0] + 5) % 12; // transpose subdominant
-    phraseBRoots[2] = 2; // inject iiø7 / ii9
+  // --- Step 4: Generate the UNIQUE Bar 12 (Bridge Departure Chord B) ---
+  const var12Candidates = (grammar.transitions[var11Root] || grammar.bridgeRootsB).filter((r) => r !== var11Root && r !== t3);
+  const var12Root = pick(var12Candidates.length > 0 ? var12Candidates : grammar.bridgeRootsB);
+  const var12Chord = pickChordForRoot(var12Root, grammar.vocab, rng);
+
+  // --- Step 5: Generate the UNIQUE Bar 16 (Climax Drop Turnaround) ---
+  const var16Candidates = grammar.climaxRoots.filter((r) => r !== t3 && r !== var8Root);
+  const var16Root = pick(var16Candidates.length > 0 ? var16Candidates : grammar.climaxRoots);
+  const var16Chord = pickChordForRoot(var16Root, grammar.vocab, rng);
+
+  // --- Step 6: Assemble the Progression according to barsCount ---
+  interface StepAssignment {
+    bar: number;
+    phrase: "THEME" | "VAR 8" | "VAR 11" | "VAR 12" | "VAR 16";
+    root: number;
+    chord: ChordOption;
+    isUnique: boolean;
   }
 
-  // --- 3. BUILD PHRASE C (Bars 9-12: Bridge Modal Departure) ---
-  const c1Candidates = grammar.phraseCStarts.filter((r) => r !== a1 && r !== b1);
-  const c1 = pick(c1Candidates.length > 0 ? c1Candidates : grammar.phraseCStarts);
-  const c2 = nextRoot(c1, grammar.transitions[c1] || [3, 5, 8]);
-  const c3 = nextRoot(c2, grammar.transitions[c2] || [8, 5, 7]);
-  const c4 = pick(grammar.phraseCCadences);
-  const phraseCRoots = [c1, c2, c3, c4];
+  const barSteps: StepAssignment[] = [];
 
-  // --- 4. BUILD PHRASE D (Bars 13-16: Climax & Drop Preparation) ---
-  const d1 = pick(grammar.phraseDStarts);
-  const d2 = nextRoot(d1, grammar.transitions[d1] || [10, 7, 8]);
-  const d3 = nextRoot(d2, grammar.transitions[d2] || [8, 1, 5]);
-  const d4 = pick(grammar.phraseDCadences);
-  const phraseDRoots = [d1, d2, d3, d4];
-
-  // Assemble phrases based on requested barsCount
-  const plannedPhrases: { phrase: "A" | "B" | "C" | "D"; roots: number[] }[] = [];
-  if (barsCount === 4) {
-    plannedPhrases.push({ phrase: "A", roots: phraseARoots });
-  } else if (barsCount === 8) {
-    plannedPhrases.push({ phrase: "A", roots: phraseARoots });
-    plannedPhrases.push({ phrase: "B", roots: phraseBRoots });
-  } else {
-    plannedPhrases.push({ phrase: "A", roots: phraseARoots });
-    plannedPhrases.push({ phrase: "B", roots: phraseBRoots });
-    plannedPhrases.push({ phrase: "C", roots: phraseCRoots });
-    plannedPhrases.push({ phrase: "D", roots: phraseDRoots });
+  for (let b = 1; b <= barsCount; b++) {
+    if (b === 8) {
+      barSteps.push({ bar: 8, phrase: "VAR 8", root: var8Root, chord: var8Chord, isUnique: true });
+    } else if (b === 11) {
+      barSteps.push({ bar: 11, phrase: "VAR 11", root: var11Root, chord: var11Chord, isUnique: true });
+    } else if (b === 12) {
+      barSteps.push({ bar: 12, phrase: "VAR 12", root: var12Root, chord: var12Chord, isUnique: true });
+    } else if (b === 16) {
+      barSteps.push({ bar: 16, phrase: "VAR 16", root: var16Root, chord: var16Chord, isUnique: true });
+    } else {
+      const themeIndex = (b - 1) % 4;
+      barSteps.push({
+        bar: b,
+        phrase: "THEME",
+        root: themeRoots[themeIndex],
+        chord: themeChords[themeIndex],
+        isUnique: false,
+      });
+    }
   }
 
   const generatedChords: GeneratedChord[] = [];
-  let currentBar = 1;
   let prevUpperNotes: number[] | null = null;
 
-  plannedPhrases.forEach(({ phrase, roots }) => {
-    roots.forEach((rootOffset) => {
-      // Pick chord quality from vocabulary for this root
-      const chordChoice = pickChordForRoot(rootOffset, grammar, rng);
+  barSteps.forEach((step) => {
+    const chordRootMidi = keyRootMidi + step.root;
+    const rootNoteName = NOTE_NAMES[chordRootMidi % 12];
+    const chordName = `${rootNoteName}${step.chord.nameSuffix}`;
 
-      const chordRootMidi = keyRootMidi + rootOffset;
-      const rootNoteName = NOTE_NAMES[chordRootMidi % 12];
-      const chordName = `${rootNoteName}${chordChoice.nameSuffix}`;
+    const notes = voiceLeadChord(chordRootMidi, step.chord.intervals, prevUpperNotes, voicing, complexity);
+    prevUpperNotes = notes.slice(1);
 
-      // Voice-lead with smooth minimal voice displacement
-      const notes = voiceLeadChord(chordRootMidi, chordChoice.intervals, prevUpperNotes, voicing, complexity);
-      prevUpperNotes = notes.slice(1);
-
-      generatedChords.push({
-        bar: currentBar,
-        phrase,
-        roman: chordChoice.roman,
-        chordName,
-        functionTag: chordChoice.functionTag,
-        notes,
-      });
-
-      currentBar++;
+    generatedChords.push({
+      bar: step.bar,
+      phrase: step.phrase,
+      roman: step.chord.roman,
+      chordName,
+      functionTag: step.isUnique ? `★ ${step.chord.functionTag}` : step.chord.functionTag,
+      notes,
+      isUnique: step.isUnique,
     });
   });
 
   return generatedChords;
 }
 
-// Retain legacy exports so existing references compile cleanly
 export const GENRE_THEORY_PROGRESSIONS: Record<string, TheoryChord[][]> = {
   "Deep House": [
     [
