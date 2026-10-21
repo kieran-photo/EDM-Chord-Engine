@@ -1,3 +1,4 @@
+```react
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import {
   EDM_TAXONOMY,
@@ -150,67 +151,13 @@ import {
       const baseProg = rawList[variationSeed % rawList.length] || DEFAULT_THEORY_PROGRESSIONS[0];
       const scale = SCALE_DEGREES[scaleName] || SCALE_DEGREES.Minor;
 
-   // Helper to generate a single chord step given degree, extension, and roman numeral
-   const buildStep = (deg: number, ext: number[], roman: string) => {
-     const rootMidi = keyRootMidi + (scale[deg % 7] || 0);
-     const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
-     const notes = ext.slice(0, maxNotes).map((e) => rootMidi + e);
-
-     // Voicing adjustments
-     if (voicing === "Open" && notes.length >= 3) {
-       notes[1] += 12;
-     } else if (voicing === "Drop 2" && notes.length >= 4) {
-       notes[notes.length - 2] -= 12;
-     } else if (voicing === "Inversion 1" && notes.length >= 2) {
-       notes[0] += 12;
-     }
-
-     notes.sort((a, b) => a - b);
-     return { roman, notes };
-   };
-
-   // Turnaround chord definitions based on music theory / scale mode
-   const getTurnaroundStep = (barIndex: number): { deg: number; ext: number[]; roman: string } => {
-     const isMinor = scaleName.toLowerCase().includes("minor") || scaleName.toLowerCase().includes("dorian") || scaleName.toLowerCase().includes("phrygian");
-
-     if (barIndex === 7) {
-       // Bar 8: Dominant V7 or V9 cadence leading back to Tonic i / I
-       return isMinor
-         ? { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V7" }
-         : { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V9" };
-     }
-     if (barIndex === 11) {
-       // Bar 12: Subdominant / Secondary tension (iv7 or IVmaj7)
-       return isMinor
-         ? { deg: 3, ext: [0, 3, 7, 10, 14], roman: "iv7" }
-         : { deg: 3, ext: [0, 4, 7, 11, 14], roman: "IVmaj7" };
-     }
-     if (barIndex === 15) {
-       // Bar 16: Final resolution turnaround (VII7 / V7alt tension)
-       return isMinor
-         ? { deg: 6, ext: [0, 4, 7, 10], roman: "VII7" }
-         : { deg: 4, ext: [0, 4, 7, 10, 13], roman: "V7(b9)" };
-     }
-     return { deg: 4, ext: [0, 4, 7, 10], roman: "V" };
-   };
-  
-      const chords: { roman: string; notes: number[] }[] = [];
-           let step: { deg: number; ext: number[]; roman: string };
-
-     // Apply musical turnarounds on bars 8 (idx 7), 12 (idx 11), and 16 (idx 15)
-     if (b === 7 || b === 11 || b === 15) {
-       step = getTurnaroundStep(b);
-     } else {
-       step = baseProg[b % baseProg.length];
-     }
-
-
-      chords.push(buildStep(step.deg, step.ext, step.roman));
-  
+      // Helper to generate a single chord step given degree, extension, and roman numeral
+      const buildStep = (deg: number, ext: number[], roman: string) => {
+        const rootMidi = keyRootMidi + (scale[deg % 7] || 0);
         const maxNotes = complexity === "Triads" ? 3 : complexity === "7ths" ? 4 : 5;
-        const notes = step.ext.slice(0, maxNotes).map((ext) => rootMidi + ext);
-  
-        // Voicing
+        const notes = ext.slice(0, maxNotes).map((e) => rootMidi + e);
+
+        // Voicing adjustments
         if (voicing === "Open" && notes.length >= 3) {
           notes[1] += 12;
         } else if (voicing === "Drop 2" && notes.length >= 4) {
@@ -218,9 +165,46 @@ import {
         } else if (voicing === "Inversion 1" && notes.length >= 2) {
           notes[0] += 12;
         }
-  
+
         notes.sort((a, b) => a - b);
-        chords.push({ roman: step.roman, notes });
+        return { roman, notes };
+      };
+
+      // Turnaround chord definitions based on music theory / scale mode
+      const getTurnaroundStep = (barIndex: number): { deg: number; ext: number[]; roman: string } => {
+        const isMinor = scaleName.toLowerCase().includes("minor") || scaleName.toLowerCase().includes("dorian") || scaleName.toLowerCase().includes("phrygian");
+
+        if (barIndex === 7) {
+          return isMinor
+            ? { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V7" }
+            : { deg: 4, ext: [0, 4, 7, 10, 14], roman: "V9" };
+        }
+        if (barIndex === 11) {
+          return isMinor
+            ? { deg: 3, ext: [0, 3, 7, 10, 14], roman: "iv7" }
+            : { deg: 3, ext: [0, 4, 7, 11, 14], roman: "IVmaj7" };
+        }
+        if (barIndex === 15) {
+          return isMinor
+            ? { deg: 6, ext: [0, 4, 7, 10], roman: "VII7" }
+            : { deg: 4, ext: [0, 4, 7, 10, 13], roman: "V7(b9)" };
+        }
+        return { deg: 4, ext: [0, 4, 7, 10], roman: "V" };
+      };
+  
+      const chords: { roman: string; notes: number[] }[] = [];
+      
+      for (let b = 0; b < barsCount; b++) {
+        let step: { deg: number; ext: number[]; roman: string };
+
+        // Apply musical turnarounds on bars 8 (idx 7), 12 (idx 11), and 16 (idx 15)
+        if (b === 7 || b === 11 || b === 15) {
+          step = getTurnaroundStep(b);
+        } else {
+          step = baseProg[b % baseProg.length];
+        }
+
+        chords.push(buildStep(step.deg, step.ext, step.roman));
       }
       return chords;
     }, [currentSubgenreName, keyRootMidi, scaleName, barsCount, variationSeed, complexity, voicing]);
@@ -256,7 +240,6 @@ import {
           const noteStart = chordStart + (nIdx * (strumMs * 0.001));
   
           if (soundType === "Guitar") {
-            // Plucked string approximation
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = "triangle";
@@ -270,7 +253,6 @@ import {
             osc.stop(noteStart + chordDuration);
             activeNodesRef.current.push(osc);
           } else if (soundType === "Piano") {
-            // Dual sine acoustic hammer
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -290,7 +272,6 @@ import {
             osc2.stop(noteStart + chordDuration);
             activeNodesRef.current.push(osc1, osc2);
           } else {
-            // Dual Detuned Supersaw Synth
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const filter = ctx.createBiquadFilter();
@@ -324,7 +305,7 @@ import {
       }, totalDuration * 1000);
     };
   
-    // Export Audio (WAV / MP3 audio container)
+    // Export Audio (WAV audio container)
     const downloadAudio = (isMp3: boolean) => {
       const sampleRate = 44100;
       const tempo = 128;
@@ -418,8 +399,8 @@ import {
     const downloadMidi = () => {
       const ticksPerBar = 1920;
       const trackBytes: number[] = [
-        0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20, // 128 bpm
-        0x00, 0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08, // 4/4
+        0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20,
+        0x00, 0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08,
       ];
   
       const events: { tick: number; status: number; pitch: number; vel: number }[] = [];
@@ -436,7 +417,6 @@ import {
       let curTick = 0;
       events.forEach((ev) => {
         let delta = ev.tick - curTick;
-        // encode var len
         let buf = delta & 0x7f;
         while ((delta >>= 7) > 0) {
           buf <<= 8;
@@ -474,7 +454,7 @@ import {
   
     return (
       <div className={`min-h-screen w-full flex flex-col items-center justify-center p-4 md:p-8 font-sans select-none text-zinc-100 bg-linear-to-b ${currentTheme.bgGradient}`}>
-       <div className={`w-full max-w-6xl rounded-2xl border ${currentTheme.cardBorder} bg-black/70 p-5 md:p-6 shadow-2xl flex flex-col gap-4 backdrop-blur-md`}>
+        <div className={`w-full max-w-6xl rounded-2xl border ${currentTheme.cardBorder} bg-black/70 p-5 md:p-6 shadow-2xl flex flex-col gap-4 backdrop-blur-md`}>
           {/* Top Header Controls (Single-Line Compact Strip) */}
           <div className="flex h-10 items-center justify-between border-b border-zinc-800 pb-2 gap-1.5 flex-nowrap">
             <div className="flex items-center gap-1.5 shrink-0">
@@ -492,316 +472,169 @@ import {
             </div>
   
             <div className="flex items-center gap-1 shrink-0 flex-nowrap">
-              {/* Key / Scale / Bars */}
-              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] whitespace-nowrap">
-                <span className="text-zinc-500 font-mono text-[8px]">KEY:</span>
-                <select
+              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300">
+                <Music className="h-3 w-3 text-zinc-400" />
+                <span className="font-medium">Key:</span>
+                <select 
+                  className="bg-transparent text-white font-bold outline-none cursor-pointer"
                   value={keyIdx}
                   onChange={(e) => setKeyIdx(Number(e.target.value))}
-                  className="bg-transparent font-mono font-bold text-cyan-400 focus:outline-none cursor-pointer text-[9px]"
                 >
-                  {NOTE_NAMES.map((n, i) => (
-                    <option key={n} value={i} className="bg-zinc-900 text-white">
-                      {n}
-                    </option>
+                  {NOTE_NAMES.map((name, idx) => (
+                    <option key={name} value={idx} className="bg-zinc-900 text-white">{name}</option>
                   ))}
                 </select>
-                <span className="text-zinc-600">/</span>
-                <select
+              </div>
+
+              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300">
+                <Sliders className="h-3 w-3 text-zinc-400" />
+                <span className="font-medium">Scale:</span>
+                <select 
+                  className="bg-transparent text-white font-bold outline-none cursor-pointer"
                   value={scaleName}
                   onChange={(e) => setScaleName(e.target.value)}
-                  className="bg-transparent font-mono text-zinc-300 focus:outline-none cursor-pointer text-[9px]"
                 >
-                  {Object.keys(SCALE_DEGREES).map((s) => (
-                    <option key={s} value={s} className="bg-zinc-900 text-white">
-                      {s}
-                    </option>
+                  {Object.keys(SCALE_DEGREES).map((sc) => (
+                    <option key={sc} value={sc} className="bg-zinc-900 text-white">{sc}</option>
                   ))}
                 </select>
-                <span className="text-zinc-600">|</span>
-                <select
+              </div>
+
+              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300">
+                <Activity className="h-3 w-3 text-zinc-400" />
+                <span className="font-medium">Bars:</span>
+                <select 
+                  className="bg-transparent text-white font-bold outline-none cursor-pointer"
                   value={barsCount}
                   onChange={(e) => setBarsCount(Number(e.target.value) as 4 | 8 | 16)}
-                  className="bg-transparent font-mono font-bold text-amber-400 focus:outline-none cursor-pointer text-[9px]"
                 >
-                  <option value={4} className="bg-zinc-900 text-amber-300">4B</option>
-                  <option value={8} className="bg-zinc-900 text-amber-300">8B</option>
-                  <option value={16} className="bg-zinc-900 text-amber-300">16B</option>
+                  <option value={4} className="bg-zinc-900 text-white">4 Bars</option>
+                  <option value={8} className="bg-zinc-900 text-white">8 Bars</option>
+                  <option value={16} className="bg-zinc-900 text-white">16 Bars</option>
                 </select>
               </div>
-  
-              {/* Sound Preview Model */}
-              <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] whitespace-nowrap">
-                <span className="text-zinc-500 font-mono text-[8px]">SOUND:</span>
-                <select
-                  value={soundType}
-                  onChange={(e) => setSoundType(e.target.value as "Synth" | "Piano" | "Guitar")}
-                  className="bg-transparent font-mono font-bold text-emerald-400 focus:outline-none cursor-pointer text-[9px]"
-                >
-                  <option value="Synth" className="bg-zinc-900 text-emerald-300">Synth</option>
-                  <option value="Piano" className="bg-zinc-900 text-emerald-300">Piano</option>
-                  <option value="Guitar" className="bg-zinc-900 text-emerald-300">Guitar</option>
-                </select>
-              </div>
-  
-              {/* Randomize Button */}
-              <button
-                onClick={() => setVariationSeed(Math.floor(Math.random() * 99999))}
-                className="flex items-center gap-1 rounded border border-purple-500/50 bg-purple-950/40 px-1.5 py-0.5 text-[9px] font-semibold text-purple-200 hover:bg-purple-900/60 active:scale-95 transition-all whitespace-nowrap"
-                title="Randomize progression"
-              >
-                <Dices className="h-2.5 w-2.5 text-purple-300" />
-                <span>Randomize</span>
-              </button>
-  
-              {/* Preview Button */}
-              <button
-                onClick={isPlaying ? stopAudio : playAudio}
-                className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-semibold active:scale-95 transition-all whitespace-nowrap ${
-                  isPlaying
-                    ? "border-emerald-400 bg-emerald-500 text-black shadow-[0_0_8px_rgba(52,211,153,0.6)]"
-                    : "border-emerald-500/50 bg-emerald-950/40 text-emerald-200 hover:bg-emerald-900/60"
-                }`}
-              >
-                {isPlaying ? (
-                  <>
-                    <Square className="h-2.5 w-2.5 fill-black" />
-                    <span>Stop</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-2.5 w-2.5 fill-emerald-300" />
-                    <span>Preview</span>
-                  </>
-                )}
-              </button>
-  
-              {/* Export WAV */}
-              <button
-                onClick={() => downloadAudio(false)}
-                className="flex items-center gap-1 rounded border border-blue-500/50 bg-blue-950/40 px-1.5 py-0.5 text-[9px] font-semibold text-blue-200 hover:bg-blue-900/60 active:scale-95 transition-all whitespace-nowrap"
-              >
-                <FileAudio className="h-2.5 w-2.5 text-blue-400" />
-                <span>WAV</span>
-              </button>
-  
-              {/* Export MP3 */}
-              <button
-                onClick={() => downloadAudio(true)}
-                className="flex items-center gap-1 rounded border border-emerald-500/50 bg-emerald-950/40 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-200 hover:bg-emerald-900/60 active:scale-95 transition-all whitespace-nowrap"
-              >
-                <Download className="h-2.5 w-2.5 text-emerald-400" />
-                <span>MP3</span>
-              </button>
-  
-              {/* Export MIDI */}
-              <button
-                onClick={downloadMidi}
-                className="flex items-center gap-1 rounded border border-cyan-500/50 bg-cyan-950/40 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-200 hover:bg-cyan-900/60 active:scale-95 transition-all whitespace-nowrap"
-              >
-                <FileCode className="h-2.5 w-2.5 text-cyan-400" />
-                <span>MIDI</span>
-              </button>
             </div>
           </div>
-  
-          {/* Piano Roll Progression Display */}
-          <div className={`flex flex-col gap-1 rounded-xl border ${currentTheme.cardBorder} ${currentTheme.panelBg} p-2.5 shadow-inner`}>
-            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-              <span className={`flex items-center gap-1 ${currentTheme.accentText}`}>
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>{barsCount}-BAR PROGRESSION PIANO ROLL</span>
-              </span>
-              <span className={`font-mono ${currentTheme.headerAccent}`}>{currentSubgenreName}</span>
+
+          {/* Genre / Subgenre Selection Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className={`p-3 rounded-xl border border-zinc-800 ${currentTheme.panelBg} flex flex-col gap-2`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400">EDM Genre Category</span>
+                <span className={`text-[10px] font-bold ${currentTheme.headerAccent}`}>{currentGenreData.category}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {EDM_TAXONOMY.map((genre, gIdx) => (
+                  <button
+                    key={genre.category}
+                    onClick={() => { setGenreIdx(gIdx); setSubgenreIdx(0); }}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${genreIdx === gIdx ? `${currentTheme.badge} text-white font-bold` : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
+                  >
+                    {genre.category}
+                  </button>
+                ))}
+              </div>
             </div>
-  
-            {/* Chord Chips */}
-            <div className={`grid gap-1.5 ${barsCount === 4 ? "grid-cols-4" : barsCount === 8 ? "grid-cols-8" : "grid-cols-8 grid-rows-2"}`}>
+
+            <div className={`p-3 rounded-xl border border-zinc-800 ${currentTheme.panelBg} flex flex-col gap-2`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400">Subgenre Style</span>
+                <span className={`text-[10px] font-bold ${currentTheme.accentText}`}>{currentSubgenreName}</span>
+              </div>
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                {currentSubgenres.map((sub, sIdx) => (
+                  <button
+                    key={sub}
+                    onClick={() => setSubgenreIdx(sIdx)}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${subgenreIdx === sIdx ? `${currentTheme.badge} text-white font-bold` : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
+                  >
+                    {sub}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Chord Progression Display / Piano Roll Grid */}
+          <div className={`p-4 rounded-xl border border-zinc-800 ${currentTheme.pianoRollBg} flex flex-col gap-3 shadow-inner`}>
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-zinc-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">Generated Chord Progression ({barsCount} Bars)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setVariationSeed(Math.floor(Math.random() * 10000))}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-[10px] font-medium transition-all text-zinc-200"
+                >
+                  <Dices className="h-3 w-3 text-cyan-400" />
+                  <span>Randomize</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-2">
               {progressionChords.map((chord, idx) => (
-                <div key={idx} className={`rounded border ${currentTheme.chordCardBorder} ${currentTheme.chordCardBg} p-1 flex flex-col justify-between`}>
-                  <div className="flex justify-between items-center text-[8px] font-mono">
-                    <span className="text-zinc-500">B{idx + 1}</span>
-                    <span className={`font-bold ${currentTheme.headerAccent} text-[10px]`}>{chord.roman}</span>
+                <div key={idx} className={`p-2.5 rounded-lg border ${currentTheme.chordCardBorder} ${currentTheme.chordCardBg} flex flex-col gap-1.5 relative overflow-hidden group shadow`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-mono text-zinc-400">Bar {idx + 1}</span>
+                    <span className={`text-[10px] font-extrabold ${currentTheme.headerAccent}`}>{chord.roman}</span>
                   </div>
-                  <div className="flex flex-wrap gap-0.5 truncate mt-0.5">
-                    {chord.notes.map((n) => (
-                      <span key={n} className="text-[7px] font-mono text-zinc-200 bg-black/60 px-0.5 rounded">
-                        {midiToName(n)}
-                      </span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {chord.notes.map((midi, nIdx) => (
+                      <div key={nIdx} className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-linear-to-r ${currentTheme.noteGradient} text-black`}>
+                        {midiToName ? midiToName(midi) : midi}
+                      </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-  
-            {/* Piano Roll Grid Canvas */}
-            <div className={`relative flex h-48 md:h-56 w-full rounded border border-zinc-800 ${currentTheme.pianoRollBg} overflow-hidden mt-1`}>
-              <div className="w-9 flex flex-col justify-between border-r border-zinc-800 bg-black/60 py-0.5 z-10">
-                {["B5", "G5", "E5", "C5", "A4", "F4", "D4", "B3", "G3", "E3", "C3", "A2", "F2", "D2", "C2"].map((note) => (
-                  <span
-                    key={note}
-                    className={`text-[7px] font-mono px-1 font-semibold leading-none ${
-                      note.startsWith("C") ? `${currentTheme.headerAccent} font-bold` : "text-zinc-600"
-                    }`}
+          </div>
+
+          {/* Bottom Action Controls & Export */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-800">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={isPlaying ? stopAudio : playAudio}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shadow-lg transition-all ${isPlaying ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/40' : 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-cyan-900/40'}`}
+              >
+                {isPlaying ? <Square className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+                <span>{isPlaying ? "Stop Preview" : "Play Progression"}</span>
+              </button>
+
+              <div className="flex items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1 text-xs">
+                {(["Synth", "Piano", "Guitar"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSoundType(s)}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all ${soundType === s ? 'bg-zinc-800 text-white font-bold shadow' : 'text-zinc-400 hover:text-zinc-200'}`}
                   >
-                    {note}
-                  </span>
+                    {s}
+                  </button>
                 ))}
               </div>
-  
-              <div className="relative flex-1 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-size-[100%_7.14%]">
-                <div className="absolute inset-0 flex justify-between pointer-events-none">
-                  {Array.from({ length: barsCount - 1 }).map((_, i) => (
-                    <div key={i} className="border-r border-zinc-700/40 h-full" style={{ width: `${100 / barsCount}%` }} />
-                  ))}
-                </div>
-  
-                {progressionChords.map((chord, bIdx) => {
-                  const barWidth = 100 / barsCount;
-                  const baseLeft = bIdx * barWidth;
-                  return chord.notes.map((midi, nIdx) => {
-                    const clamped = Math.max(36, Math.min(83, midi));
-                    const top = (1 - (clamped - 36) / 47) * 90;
-                    const strumOffset = (strumMs * nIdx * 0.003) * (4 / barsCount);
-                    return (
-                      <div
-                        key={`${bIdx}-${midi}`}
-                        className={`absolute h-2.5 rounded-sm bg-linear-to-r ${currentTheme.noteGradient} flex items-center px-1`}
-                        style={{
-                          top: `${top}%`,
-                          left: `${baseLeft + strumOffset}%`,
-                          width: `${Math.max(2, barWidth * 0.9 - strumOffset)}%`,
-                        }}
-                      >
-                        <span className="text-[6px] font-mono font-black text-black truncate leading-none">
-                          {midiToName(midi)}
-                        </span>
-                      </div>
-                    );
-                  });
-                })}
-              </div>
             </div>
-          </div>
-  
-          {/* Lower Controls Panel */}
-          <div className="grid grid-cols-12 gap-3">
-            {/* Genre & Subgenre Selector */}
-            <div className="col-span-6 rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-3 flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-cyan-400 border-b border-zinc-800 pb-1">
-                <Layers className="h-3.5 w-3.5" />
-                <span>Genre & Subgenre</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <div>
-                  <label className="text-[9px] uppercase font-semibold text-zinc-400 block mb-0.5">EDM Genre</label>
-                  <select
-                    value={genreIdx}
-                    onChange={(e) => {
-                      setGenreIdx(Number(e.target.value));
-                      setSubgenreIdx(0);
-                    }}
-                    className="w-full rounded border border-cyan-500/40 bg-zinc-900 px-2 py-1 text-xs font-semibold text-cyan-300 focus:outline-none cursor-pointer"
-                  >
-                    {EDM_TAXONOMY.map((item, idx) => (
-                      <option key={item.genre} value={idx}>
-                        {item.genre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-  
-                <div>
-                  <label className="text-[9px] uppercase font-semibold text-zinc-400 block mb-0.5">
-                    Subgenre ({currentSubgenres.length})
-                  </label>
-                  <select
-                    value={subgenreIdx}
-                    onChange={(e) => setSubgenreIdx(Number(e.target.value))}
-                    className="w-full rounded border border-purple-500/40 bg-zinc-900 px-2 py-1 text-xs font-semibold text-purple-300 focus:outline-none cursor-pointer"
-                  >
-                    {currentSubgenres.map((sub, idx) => (
-                      <option key={sub} value={idx}>
-                        {sub}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => downloadAudio(false)}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition-all shadow"
+              >
+                <FileAudio className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Export WAV</span>
+              </button>
+              <button
+                onClick={downloadMidi}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition-all shadow"
+              >
+                <FileCode className="h-3.5 w-3.5 text-cyan-400" />
+                <span>Export MIDI</span>
+              </button>
             </div>
-  
-            {/* Voicing & Complexity & Theme */}
-            <div className="col-span-6 rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-3 flex flex-col justify-between">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-400">
-                  <Sliders className="h-3.5 w-3.5" />
-                  <span>Voicing & Articulation Engine</span>
-                </div>
-                <div className="flex items-center gap-1 text-[9px]">
-                  <Palette className="h-3 w-3 text-zinc-400" />
-                  <select
-                    value={themeId}
-                    onChange={(e) => setThemeId(e.target.value)}
-                    className="bg-transparent font-mono text-zinc-300 focus:outline-none cursor-pointer text-[9px]"
-                  >
-                    {THEMES.map((t) => (
-                      <option key={t.id} value={t.id} className="bg-zinc-900 text-white">
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <div>
-                  <label className="text-[9px] uppercase font-semibold text-zinc-400 block mb-0.5">Voicing</label>
-                  <select
-                    value={voicing}
-                    onChange={(e) => setVoicing(e.target.value)}
-                    className="w-full rounded border border-zinc-800 bg-zinc-900 px-1 py-1 text-[10px] font-mono text-zinc-200 cursor-pointer"
-                  >
-                    <option value="Close">Close</option>
-                    <option value="Open">Open</option>
-                    <option value="Drop 2">Drop 2</option>
-                    <option value="Inversion 1">Inversion 1</option>
-                  </select>
-                </div>
-  
-                <div>
-                  <label className="text-[9px] uppercase font-semibold text-zinc-400 block mb-0.5">Complexity</label>
-                  <select
-                    value={complexity}
-                    onChange={(e) => setComplexity(e.target.value)}
-                    className="w-full rounded border border-zinc-800 bg-zinc-900 px-1 py-1 text-[10px] font-mono text-zinc-200 cursor-pointer"
-                  >
-                    <option value="Triads">Triads</option>
-                    <option value="7ths">7ths</option>
-                    <option value="9ths/11ths">9ths/11ths</option>
-                  </select>
-                </div>
-  
-                <div>
-                  <label className="text-[9px] uppercase font-semibold text-zinc-400 block mb-0.5">Strum: {strumMs}ms</label>
-                  <input
-                    type="range"
-                    min={0}
-                    max={80}
-                    value={strumMs}
-                    onChange={(e) => setStrumMs(Number(e.target.value))}
-                    className="w-full accent-purple-500 cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-  
-          {/* Footer */}
-          <div className="flex items-center justify-between border-t border-zinc-800/80 pt-1 text-[9px] font-mono text-zinc-500">
-            <span>EDM CHORD ENGINE · WEB EDITION</span>
-            <span>BROWSER WEB AUDIO SYNTHESIS & MIDI EXPORT</span>
           </div>
         </div>
       </div>
     );
   }
-
+```
