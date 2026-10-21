@@ -1,5 +1,5 @@
 # EDM Chord Engine 
-## v0.1.1
+## v0.1.2
 
 **This online chord progression generator is the perfect way to generate new chords that fit with particular styles of electronic music.**
 
