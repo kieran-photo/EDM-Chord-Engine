@@ -1,5 +1,4 @@
-/*this is the main entry point for the React application, where the App component is defined and rendered. It imports necessary dependencies, defines themes, and sets up the main structure of the application.*/
-import React, { useRef, useMemo, useState, useEffect } from "react";
+import React, { useRef, useMemo, useState, useEffect, useCallback } from "react";
 import {
   EDM_TAXONOMY,
   midiToName,
@@ -8,25 +7,30 @@ import {
   generateProceduralProgression,
   getHarmonicStyle,
   GeneratedChord,
+  ArpType,
+  generateBarNotes,
+  RHYTHM_PATTERNS,
+  SlicedNote,
 } from "./data";
 
 import {
   Layers,
   Sparkles,
   Sliders,
-  Volume2,
-  Activity,
-  Music,
-  Download,
   Dices,
   Play,
   Square,
   FileAudio,
   FileCode,
+  Download,
   Zap,
   Palette,
   Shuffle,
   ChevronRight,
+  Activity,
+  RotateCcw,
+  MousePointer,
+  Wand2,
 } from "lucide-react";
 
 // Creative, high-contrast EDM hardware and club themes
@@ -609,6 +613,16 @@ export default function Component() {
   const [voicing, setVoicing] = useState("Drop 2");
   const [variationSeed, setVariationSeed] = useState(42);
   const [strumMs, setStrumMs] = useState(12);
+
+  // New Requested Controls: Arpeggiator & Rhythm Chopper
+  const [isArp, setIsArp] = useState(false);
+  const [arpType, setArpType] = useState<ArpType>("Up");
+  const [arpRate, setArpRate] = useState<"1/8" | "1/16">("1/16");
+  const [rhythmNotch, setRhythmNotch] = useState(0); // 0 = Sustain, 1 = 1/4, 2 = 1/8, etc.
+
+  // Manual piano roll user modifications (Bar -> Array of MIDI notes)
+  const [userEditedChords, setUserEditedChords] = useState<Record<number, number[]>>({});
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingBarIndex, setPlayingBarIndex] = useState<number | null>(null);
 
@@ -623,9 +637,9 @@ export default function Component() {
   const currentSubgenreName = currentSubgenres[subgenreIdx] || currentSubgenres[0] || "Default";
   const harmonicStyle = getHarmonicStyle(currentSubgenreName, currentGenreData.genre);
 
-  // Generate infinitely varied, genre-specific chords
+  // Generate base procedural chords
   const keyRootMidi = 48 + keyIdx;
-  const progressionChords: GeneratedChord[] = useMemo(() => {
+  const baseChords: GeneratedChord[] = useMemo(() => {
     return generateProceduralProgression({
       subgenre: currentSubgenreName,
       genre: currentGenreData.genre,
@@ -638,14 +652,32 @@ export default function Component() {
     });
   }, [currentSubgenreName, currentGenreData.genre, scaleName, barsCount, variationSeed, complexity, voicing, keyRootMidi]);
 
-  // Clean up any pending playhead intervals or timeouts on unmount or variation change
+  // Combine base chords with any user edits made inside the visual piano roll
+  const progressionChords: GeneratedChord[] = useMemo(() => {
+    return baseChords.map((chord) => {
+      if (userEditedChords[chord.bar]) {
+        return {
+          ...chord,
+          notes: [...userEditedChords[chord.bar]].sort((a, b) => a - b),
+        };
+      }
+      return chord;
+    });
+  }, [baseChords, userEditedChords]);
+
+  // Pre-calculate sliced note events (Arpeggiated or Rhythmically Chopped)
+  const barSlices: SlicedNote[][] = useMemo(() => {
+    return progressionChords.map((chord, bIdx) => {
+      return generateBarNotes(chord.notes, bIdx, isArp, arpType, rhythmNotch, arpRate);
+    });
+  }, [progressionChords, isArp, arpType, rhythmNotch, arpRate]);
+
   useEffect(() => {
     return () => {
       stopAudio();
     };
   }, []);
 
-  // Audio Playback with synchronized playhead highlighting
   const stopAudio = () => {
     activeNodesRef.current.forEach((n) => {
       try {
@@ -659,6 +691,66 @@ export default function Component() {
     setPlayingBarIndex(null);
   };
 
+  // Play an instant tactile preview of a note when clicked on the piano roll
+  const previewNoteTone = (midi: number) => {
+    try {
+      const ctx = audioCtxRef.current || new AudioContext();
+      audioCtxRef.current = ctx;
+      if (ctx.state === "suspended") ctx.resume();
+
+      const freq = 440 * Math.pow(2, (midi - 69) / 12);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.25);
+    } catch {}
+  };
+
+  // Toggle or add/remove notes directly inside the visual piano roll
+  const handlePianoRollClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const xRatio = Math.max(0, Math.min(0.999, clickX / rect.width));
+    const yRatio = Math.max(0, Math.min(0.999, clickY / rect.height));
+
+    const clickedBarIdx = Math.floor(xRatio * barsCount);
+    const barNumber = clickedBarIdx + 1;
+
+    // Pitch mapping: Top is MIDI 83 (B5), Bottom is MIDI 36 (C2)
+    const pitch = Math.round(36 + (1 - yRatio) * 47);
+
+    const currentChordNotes = progressionChords[clickedBarIdx]?.notes || [];
+    let updatedNotes: number[];
+
+    if (currentChordNotes.includes(pitch)) {
+      // Remove note
+      updatedNotes = currentChordNotes.filter((p) => p !== pitch);
+    } else {
+      // Add note
+      updatedNotes = [...currentChordNotes, pitch].sort((a, b) => a - b);
+      previewNoteTone(pitch);
+    }
+
+    setUserEditedChords((prev) => ({
+      ...prev,
+      [barNumber]: updatedNotes,
+    }));
+  };
+
+  const resetAllManualEdits = () => {
+    setUserEditedChords({});
+  };
+
+  // Schedule and play audio with active arpeggiator / rhythm gate chopping
   const playAudio = () => {
     stopAudio();
     const ctx = audioCtxRef.current || new AudioContext();
@@ -670,19 +762,19 @@ export default function Component() {
     const tempo = 128;
     const secondsPerBar = (60 / tempo) * 4;
 
-    progressionChords.forEach((chord, bIdx) => {
+    progressionChords.forEach((_, bIdx) => {
       const chordStart = now + bIdx * secondsPerBar;
-      const chordDuration = secondsPerBar * 0.95;
 
-      // Schedule UI highlight for this bar
       const barTimer = window.setTimeout(() => {
         setPlayingBarIndex(bIdx);
       }, bIdx * secondsPerBar * 1000);
       timeoutsRef.current.push(barTimer);
 
-      chord.notes.forEach((midi, nIdx) => {
-        const freq = 440 * Math.pow(2, (midi - 69) / 12);
-        const noteStart = chordStart + (nIdx * (strumMs * 0.001));
+      const slices = barSlices[bIdx] || [];
+      slices.forEach((slice) => {
+        const freq = 440 * Math.pow(2, (slice.pitch - 69) / 12);
+        const noteStart = chordStart + slice.startRatio * secondsPerBar;
+        const noteDuration = Math.max(0.04, slice.durationRatio * secondsPerBar);
 
         if (soundType === "Guitar") {
           const osc1 = ctx.createOscillator();
@@ -697,15 +789,15 @@ export default function Component() {
           filter.frequency.setValueAtTime(2200, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.linearRampToValueAtTime(0.24, noteStart + 0.006);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(ctx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
           activeNodesRef.current.push(osc1, osc2);
         } else if (soundType === "Harp") {
           const osc1 = ctx.createOscillator();
@@ -721,15 +813,15 @@ export default function Component() {
           filter.Q.setValueAtTime(2.2, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.linearRampToValueAtTime(0.25, noteStart + 0.003);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + Math.min(chordDuration, 1.9));
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + Math.min(noteDuration, 1.8));
           osc1.connect(gain);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(ctx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
           activeNodesRef.current.push(osc1, osc2);
         } else if (soundType === "Pluck") {
           const osc = ctx.createOscillator();
@@ -739,16 +831,16 @@ export default function Component() {
           osc.frequency.setValueAtTime(freq, noteStart);
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(4800, noteStart);
-          filter.frequency.exponentialRampToValueAtTime(450, noteStart + 0.16);
+          filter.frequency.exponentialRampToValueAtTime(450, noteStart + Math.min(noteDuration, 0.16));
           filter.Q.setValueAtTime(3.2, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.linearRampToValueAtTime(0.28, noteStart + 0.004);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.35);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + Math.min(noteDuration, 0.32));
           osc.connect(filter);
           filter.connect(gain);
           gain.connect(ctx.destination);
           osc.start(noteStart);
-          osc.stop(noteStart + chordDuration);
+          osc.stop(noteStart + noteDuration);
           activeNodesRef.current.push(osc);
         } else if (soundType === "Brass") {
           const osc1 = ctx.createOscillator();
@@ -761,20 +853,20 @@ export default function Component() {
           osc2.frequency.setValueAtTime(freq * 1.004, noteStart);
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(700, noteStart);
-          filter.frequency.linearRampToValueAtTime(3200, noteStart + 0.07);
+          filter.frequency.linearRampToValueAtTime(3200, noteStart + Math.min(noteDuration * 0.4, 0.07));
           filter.Q.setValueAtTime(1.8, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.03);
-          gain.gain.setValueAtTime(0.16, noteStart + chordDuration * 0.85);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.linearRampToValueAtTime(0.2, noteStart + 0.02);
+          gain.gain.setValueAtTime(0.18, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(ctx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
           activeNodesRef.current.push(osc1, osc2);
         } else if (soundType === "Strings") {
           const osc1 = ctx.createOscillator();
@@ -788,17 +880,17 @@ export default function Component() {
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(2000, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.16, noteStart + 0.14);
-          gain.gain.setValueAtTime(0.15, noteStart + chordDuration * 0.88);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration + 0.2);
+          gain.gain.linearRampToValueAtTime(0.16, noteStart + Math.min(noteDuration * 0.3, 0.12));
+          gain.gain.setValueAtTime(0.15, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration + 0.1);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(ctx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration + 0.2);
-          osc2.stop(noteStart + chordDuration + 0.2);
+          osc1.stop(noteStart + noteDuration + 0.1);
+          osc2.stop(noteStart + noteDuration + 0.1);
           activeNodesRef.current.push(osc1, osc2);
         } else if (soundType === "Choir") {
           const osc = ctx.createOscillator();
@@ -814,16 +906,16 @@ export default function Component() {
           f2.frequency.setValueAtTime(1250, noteStart);
           f2.Q.setValueAtTime(4.0, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.22, noteStart + 0.1);
-          gain.gain.setValueAtTime(0.2, noteStart + chordDuration * 0.85);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration + 0.25);
+          gain.gain.linearRampToValueAtTime(0.22, noteStart + Math.min(noteDuration * 0.25, 0.08));
+          gain.gain.setValueAtTime(0.2, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration + 0.15);
           osc.connect(f1);
           osc.connect(f2);
           f1.connect(gain);
           f2.connect(gain);
           gain.connect(ctx.destination);
           osc.start(noteStart);
-          osc.stop(noteStart + chordDuration + 0.25);
+          osc.stop(noteStart + noteDuration + 0.15);
           activeNodesRef.current.push(osc);
         } else if (soundType === "Piano") {
           const osc1 = ctx.createOscillator();
@@ -835,17 +927,17 @@ export default function Component() {
           osc2.frequency.setValueAtTime(freq * 2, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.exponentialRampToValueAtTime(0.25, noteStart + 0.008);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(gain);
           osc2.connect(gain);
           gain.connect(ctx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
           activeNodesRef.current.push(osc1, osc2);
         } else {
-          // Dual Detuned Supersaw Synth with Sub-Bass Enhancement
+          // Supersaw
           const osc1 = ctx.createOscillator();
           const osc2 = ctx.createOscillator();
           const filter = ctx.createBiquadFilter();
@@ -857,17 +949,17 @@ export default function Component() {
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(3600, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.02);
-          gain.gain.setValueAtTime(0.15, noteStart + chordDuration * 0.85);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.015);
+          gain.gain.setValueAtTime(0.15, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(ctx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
           activeNodesRef.current.push(osc1, osc2);
         }
       });
@@ -881,7 +973,7 @@ export default function Component() {
     timeoutsRef.current.push(endTimer);
   };
 
-  // Export Audio (WAV / MP3 audio container)
+  // Export Audio (WAV / MP3 with active rhythm chops and arpeggio notes)
   const downloadAudio = (isMp3: boolean) => {
     const sampleRate = 44100;
     const tempo = 128;
@@ -891,13 +983,14 @@ export default function Component() {
 
     const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
 
-    progressionChords.forEach((chord, bIdx) => {
+    progressionChords.forEach((_, bIdx) => {
       const chordStart = bIdx * secondsPerBar;
-      const chordDuration = secondsPerBar * 0.95;
+      const slices = barSlices[bIdx] || [];
 
-      chord.notes.forEach((midi, nIdx) => {
-        const freq = 440 * Math.pow(2, (midi - 69) / 12);
-        const noteStart = chordStart + (nIdx * (strumMs * 0.001));
+      slices.forEach((slice) => {
+        const freq = 440 * Math.pow(2, (slice.pitch - 69) / 12);
+        const noteStart = chordStart + slice.startRatio * secondsPerBar;
+        const noteDuration = Math.max(0.04, slice.durationRatio * secondsPerBar);
 
         if (soundType === "Guitar") {
           const osc1 = offlineCtx.createOscillator();
@@ -912,15 +1005,15 @@ export default function Component() {
           filter.frequency.setValueAtTime(2200, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.linearRampToValueAtTime(0.24, noteStart + 0.006);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(offlineCtx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
         } else if (soundType === "Harp") {
           const osc1 = offlineCtx.createOscillator();
           const osc2 = offlineCtx.createOscillator();
@@ -935,15 +1028,15 @@ export default function Component() {
           filter.Q.setValueAtTime(2.2, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.linearRampToValueAtTime(0.25, noteStart + 0.003);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + Math.min(chordDuration, 1.9));
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + Math.min(noteDuration, 1.8));
           osc1.connect(gain);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(offlineCtx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
         } else if (soundType === "Pluck") {
           const osc = offlineCtx.createOscillator();
           const filter = offlineCtx.createBiquadFilter();
@@ -952,16 +1045,16 @@ export default function Component() {
           osc.frequency.setValueAtTime(freq, noteStart);
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(4800, noteStart);
-          filter.frequency.exponentialRampToValueAtTime(450, noteStart + 0.16);
+          filter.frequency.exponentialRampToValueAtTime(450, noteStart + Math.min(noteDuration, 0.16));
           filter.Q.setValueAtTime(3.2, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.linearRampToValueAtTime(0.28, noteStart + 0.004);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.35);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + Math.min(noteDuration, 0.32));
           osc.connect(filter);
           filter.connect(gain);
           gain.connect(offlineCtx.destination);
           osc.start(noteStart);
-          osc.stop(noteStart + chordDuration);
+          osc.stop(noteStart + noteDuration);
         } else if (soundType === "Brass") {
           const osc1 = offlineCtx.createOscillator();
           const osc2 = offlineCtx.createOscillator();
@@ -973,20 +1066,20 @@ export default function Component() {
           osc2.frequency.setValueAtTime(freq * 1.004, noteStart);
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(700, noteStart);
-          filter.frequency.linearRampToValueAtTime(3200, noteStart + 0.07);
+          filter.frequency.linearRampToValueAtTime(3200, noteStart + Math.min(noteDuration * 0.4, 0.07));
           filter.Q.setValueAtTime(1.8, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.03);
-          gain.gain.setValueAtTime(0.16, noteStart + chordDuration * 0.85);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.linearRampToValueAtTime(0.2, noteStart + 0.02);
+          gain.gain.setValueAtTime(0.18, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(offlineCtx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
         } else if (soundType === "Strings") {
           const osc1 = offlineCtx.createOscillator();
           const osc2 = offlineCtx.createOscillator();
@@ -999,17 +1092,17 @@ export default function Component() {
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(2000, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.16, noteStart + 0.14);
-          gain.gain.setValueAtTime(0.15, noteStart + chordDuration * 0.88);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration + 0.2);
+          gain.gain.linearRampToValueAtTime(0.16, noteStart + Math.min(noteDuration * 0.3, 0.12));
+          gain.gain.setValueAtTime(0.15, noteStart + noteDuration * 0.88);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration + 0.1);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(offlineCtx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration + 0.2);
-          osc2.stop(noteStart + chordDuration + 0.2);
+          osc1.stop(noteStart + noteDuration + 0.1);
+          osc2.stop(noteStart + noteDuration + 0.1);
         } else if (soundType === "Choir") {
           const osc = offlineCtx.createOscillator();
           const f1 = offlineCtx.createBiquadFilter();
@@ -1024,16 +1117,16 @@ export default function Component() {
           f2.frequency.setValueAtTime(1250, noteStart);
           f2.Q.setValueAtTime(4.0, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.22, noteStart + 0.1);
-          gain.gain.setValueAtTime(0.2, noteStart + chordDuration * 0.85);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration + 0.25);
+          gain.gain.linearRampToValueAtTime(0.22, noteStart + Math.min(noteDuration * 0.25, 0.08));
+          gain.gain.setValueAtTime(0.2, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration + 0.15);
           osc.connect(f1);
           osc.connect(f2);
           f1.connect(gain);
           f2.connect(gain);
           gain.connect(offlineCtx.destination);
           osc.start(noteStart);
-          osc.stop(noteStart + chordDuration + 0.25);
+          osc.stop(noteStart + noteDuration + 0.15);
         } else if (soundType === "Piano") {
           const osc1 = offlineCtx.createOscillator();
           const osc2 = offlineCtx.createOscillator();
@@ -1044,14 +1137,14 @@ export default function Component() {
           osc2.frequency.setValueAtTime(freq * 2, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
           gain.gain.exponentialRampToValueAtTime(0.25, noteStart + 0.008);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(gain);
           osc2.connect(gain);
           gain.connect(offlineCtx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
         } else {
           const osc1 = offlineCtx.createOscillator();
           const osc2 = offlineCtx.createOscillator();
@@ -1064,17 +1157,17 @@ export default function Component() {
           filter.type = "lowpass";
           filter.frequency.setValueAtTime(3600, noteStart);
           gain.gain.setValueAtTime(0.001, noteStart);
-          gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.02);
-          gain.gain.setValueAtTime(0.15, noteStart + chordDuration * 0.85);
-          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + chordDuration);
+          gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.015);
+          gain.gain.setValueAtTime(0.15, noteStart + noteDuration * 0.85);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + noteDuration);
           osc1.connect(filter);
           osc2.connect(filter);
           filter.connect(gain);
           gain.connect(offlineCtx.destination);
           osc1.start(noteStart);
           osc2.start(noteStart);
-          osc1.stop(noteStart + chordDuration);
-          osc2.stop(noteStart + chordDuration);
+          osc1.stop(noteStart + noteDuration);
+          osc2.stop(noteStart + noteDuration);
         }
       });
     });
@@ -1118,12 +1211,13 @@ export default function Component() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${currentSubgenreName.replace(/\s+/g, "_")}_${barsCount}B_Var${variationSeed}.${isMp3 ? "mp3" : "wav"}`;
+      a.download = `${currentSubgenreName.replace(/\s+/g, "_")}_${barsCount}B_${isArp ? "Arp_" : ""}${RHYTHM_PATTERNS[rhythmNotch].tag}_Var${variationSeed}.${isMp3 ? "mp3" : "wav"}`;
       a.click();
       URL.revokeObjectURL(url);
     });
   };
 
+  // MIDI Export with arpeggio and rhythm gate slicing
   const downloadMidi = () => {
     const ticksPerBar = 1920;
     const trackBytes: number[] = [
@@ -1132,12 +1226,17 @@ export default function Component() {
     ];
 
     const events: { tick: number; status: number; pitch: number; vel: number }[] = [];
-    progressionChords.forEach((chord, bIdx) => {
+    progressionChords.forEach((_, bIdx) => {
       const barStart = bIdx * ticksPerBar;
-      const barEnd = barStart + Math.floor(ticksPerBar * 0.95);
-      chord.notes.forEach((pitch) => {
-        events.push({ tick: barStart, status: 0x90, pitch, vel: 100 });
-        events.push({ tick: barEnd, status: 0x80, pitch, vel: 0 });
+      const slices = barSlices[bIdx] || [];
+
+      slices.forEach((slice) => {
+        const noteStartTick = barStart + Math.floor(slice.startRatio * ticksPerBar);
+        const noteDurationTicks = Math.max(40, Math.floor(slice.durationRatio * ticksPerBar));
+        const noteEndTick = noteStartTick + noteDurationTicks;
+
+        events.push({ tick: noteStartTick, status: 0x90, pitch: slice.pitch, vel: 100 });
+        events.push({ tick: noteEndTick, status: 0x80, pitch: slice.pitch, vel: 0 });
       });
     });
 
@@ -1175,18 +1274,20 @@ export default function Component() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${currentSubgenreName.replace(/\s+/g, "_")}_${barsCount}B_Var${variationSeed}.mid`;
+    a.download = `${currentSubgenreName.replace(/\s+/g, "_")}_${barsCount}B_${isArp ? "Arp_" : ""}${RHYTHM_PATTERNS[rhythmNotch].tag}_Var${variationSeed}.mid`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const nextVariation = () => {
     stopAudio();
+    setUserEditedChords({});
     setVariationSeed((prev) => prev + 1);
   };
 
   const randomizeAll = () => {
     stopAudio();
+    setUserEditedChords({});
     setVariationSeed(Math.floor(Math.random() * 999999) + 1);
   };
 
@@ -1203,6 +1304,24 @@ export default function Component() {
         return "bg-emerald-500/30 text-emerald-200 border-emerald-400 font-bold shadow-[0_0_8px_rgba(16,185,129,0.4)]";
       default:
         return "bg-zinc-800 text-zinc-300 border-zinc-700";
+    }
+  };
+
+  // Dial rotation calculations for the Rotary Rhythm Chopper Knob
+  const dialAngle = -135 + (rhythmNotch / 7) * 270;
+
+  const handleDialPointerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleDialPointerMove = (e: React.PointerEvent) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const delta = -e.movementY;
+    if (Math.abs(delta) > 2) {
+      setRhythmNotch((prev) => {
+        const next = delta > 0 ? prev + 1 : prev - 1;
+        return Math.max(0, Math.min(7, next));
+      });
     }
   };
 
@@ -1229,7 +1348,7 @@ export default function Component() {
 
             {/* Quick Actions (Preview, Randomize, Next Var) */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Preview / Stop Button (Prominent thumb target) */}
+              {/* Preview / Stop Button */}
               <button
                 onClick={isPlaying ? stopAudio : playAudio}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 sm:py-1 text-xs font-bold active:scale-95 transition-all shadow-md ${
@@ -1281,7 +1400,10 @@ export default function Component() {
                 <span className="text-zinc-500 font-mono text-[9px]">KEY:</span>
                 <select
                   value={keyIdx}
-                  onChange={(e) => setKeyIdx(Number(e.target.value))}
+                  onChange={(e) => {
+                    stopAudio();
+                    setKeyIdx(Number(e.target.value));
+                  }}
                   className="bg-transparent font-mono font-bold text-cyan-400 focus:outline-none cursor-pointer text-xs"
                 >
                   {NOTE_NAMES.map((n, i) => (
@@ -1293,7 +1415,10 @@ export default function Component() {
                 <span className="text-zinc-600">/</span>
                 <select
                   value={scaleName}
-                  onChange={(e) => setScaleName(e.target.value)}
+                  onChange={(e) => {
+                    stopAudio();
+                    setScaleName(e.target.value);
+                  }}
                   className="bg-transparent font-mono text-zinc-300 focus:outline-none cursor-pointer text-xs"
                 >
                   {Object.keys(SCALE_DEGREES).map((s) => (
@@ -1369,6 +1494,117 @@ export default function Component() {
           </div>
         </div>
 
+        {/* Real-time Arpeggio & Rhythm Chopper Processing Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 shadow-inner">
+          {/* Arpeggio Mode Controller */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsArp(!isArp)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-bold transition-all shadow-sm ${
+                isArp
+                  ? "border-amber-400 bg-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.5)]"
+                  : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              }`}
+            >
+              <Zap className={`h-3 w-3 ${isArp ? "fill-black" : "text-amber-400"}`} />
+              <span>ARP MODE: {isArp ? "ON" : "OFF"}</span>
+            </button>
+
+            {isArp && (
+              <div className="flex items-center gap-1.5 bg-black/50 border border-zinc-800 rounded-lg px-2 py-0.5">
+                <span className="text-[9px] font-mono text-zinc-400">TYPE:</span>
+                <select
+                  value={arpType}
+                  onChange={(e) => setArpType(e.target.value as ArpType)}
+                  className="bg-transparent font-mono text-amber-300 text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value="Up" className="bg-zinc-900 text-white">Up (Ascending)</option>
+                  <option value="Down" className="bg-zinc-900 text-white">Down (Descending)</option>
+                  <option value="Up-Down" className="bg-zinc-900 text-white">Up-Down (Bounce)</option>
+                  <option value="Down-Up" className="bg-zinc-900 text-white">Down-Up (Reverse)</option>
+                  <option value="Pedal" className="bg-zinc-900 text-white">Pedal (Bass-Lead Roll)</option>
+                  <option value="Random" className="bg-zinc-900 text-white">Random (Constellation)</option>
+                </select>
+
+                <span className="text-zinc-600">|</span>
+                <span className="text-[9px] font-mono text-zinc-400">RATE:</span>
+                <select
+                  value={arpRate}
+                  onChange={(e) => setArpRate(e.target.value as "1/8" | "1/16")}
+                  className="bg-transparent font-mono text-cyan-300 text-xs font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value="1/8" className="bg-zinc-900 text-white">1/8</option>
+                  <option value="1/16" className="bg-zinc-900 text-white">1/16</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Rotary Dial: Rhythm Chord Chopper */}
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end text-right">
+              <span className="text-[8px] font-mono uppercase text-zinc-400 tracking-wider">CHORD CHOP DIAL</span>
+              <span className="text-xs font-bold font-mono text-purple-300">
+                {RHYTHM_PATTERNS[rhythmNotch].name}
+              </span>
+            </div>
+
+            {/* Interactive Hardware Rotary Dial */}
+            <div
+              onPointerDown={handleDialPointerDown}
+              onPointerMove={handleDialPointerMove}
+              className="relative flex h-10 w-10 cursor-ns-resize items-center justify-center rounded-full border-2 border-zinc-700 bg-linear-to-b from-zinc-800 to-black shadow-md active:scale-105 active:border-purple-400 transition-transform touch-none select-none"
+              title="Drag up/down to dial different chord chopping rhythms"
+            >
+              {/* Dial Notch Ticks */}
+              {RHYTHM_PATTERNS.map((_, idx) => {
+                const tickAngle = -135 + (idx / 7) * 270;
+                const isSelected = rhythmNotch === idx;
+                return (
+                  <div
+                    key={idx}
+                    className="absolute h-full w-full pointer-events-none"
+                    style={{ transform: `rotate(${tickAngle}deg)` }}
+                  >
+                    <div
+                      className={`mx-auto h-1 w-0.5 rounded-full ${
+                        isSelected ? "bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.9)]" : "bg-zinc-600"
+                      }`}
+                    />
+                  </div>
+                );
+              })}
+
+              {/* Rotary Needle Pointer */}
+              <div
+                className="absolute h-3.5 w-1 rounded-full bg-linear-to-t from-purple-400 to-white shadow-[0_0_8px_rgba(168,85,247,1)] transition-transform duration-75"
+                style={{
+                  transform: `rotate(${dialAngle}deg) translateY(-8px)`,
+                }}
+              />
+              <div className="h-4 w-4 rounded-full bg-zinc-900 border border-zinc-600" />
+            </div>
+
+            {/* Quick Notch Stepper Buttons */}
+            <div className="flex flex-col gap-0.5">
+              <button
+                onClick={() => setRhythmNotch((prev) => Math.min(7, prev + 1))}
+                className="rounded bg-zinc-800 px-1 py-0.5 text-[8px] text-zinc-300 hover:bg-zinc-700 active:scale-95"
+                title="Next rhythm pattern"
+              >
+                +
+              </button>
+              <button
+                onClick={() => setRhythmNotch((prev) => Math.max(0, prev - 1))}
+                className="rounded bg-zinc-800 px-1 py-0.5 text-[8px] text-zinc-300 hover:bg-zinc-700 active:scale-95"
+                title="Previous rhythm pattern"
+              >
+                -
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Piano Roll Progression Display */}
         <div className={`flex flex-col gap-2 rounded-xl border ${currentTheme.cardBorder} ${currentTheme.panelBg} p-2.5 sm:p-3 shadow-inner`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-zinc-400 gap-1">
@@ -1391,7 +1627,7 @@ export default function Component() {
             </div>
           </div>
 
-          {/* Chord Chips with Responsive Grid (2-cols on mobile, 4 on tablet, 8 on desktop!) */}
+          {/* Chord Chips with Responsive Grid */}
           <div
             className={`grid gap-1.5 sm:gap-2 ${
               barsCount === 4
@@ -1403,6 +1639,7 @@ export default function Component() {
           >
             {progressionChords.map((chord, idx) => {
               const isActive = playingBarIndex === idx;
+              const hasUserEdits = !!userEditedChords[chord.bar];
               return (
                 <div
                   key={idx}
@@ -1424,6 +1661,11 @@ export default function Component() {
 
                   <div className="flex items-center justify-between text-[10px] sm:text-xs font-bold text-white tracking-tight my-0.5">
                     <span className="truncate">{chord.chordName}</span>
+                    {hasUserEdits && (
+                      <span className="text-[7px] font-mono text-purple-300 bg-purple-950/80 px-1 rounded border border-purple-500/30">
+                        EDITED
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-[7px] sm:text-[8px] text-zinc-400 truncate font-mono mb-1 leading-tight" title={chord.functionTag}>
@@ -1442,77 +1684,100 @@ export default function Component() {
             })}
           </div>
 
-          {/* Piano Roll Grid Canvas */}
-          <div className={`relative flex h-44 sm:h-52 md:h-60 w-full rounded-lg border border-zinc-800 ${currentTheme.pianoRollBg} overflow-hidden mt-1`}>
-            {/* Note pitch labels on left ruler */}
-            <div className="w-8 sm:w-10 flex flex-col justify-between border-r border-zinc-800 bg-black/75 py-0.5 z-10 shrink-0">
-              {["B5", "G5", "E5", "C5", "A4", "F4", "D4", "B3", "G3", "E3", "C3", "A2", "F2", "D2", "C2"].map((note) => (
-                <span
-                  key={note}
-                  className={`text-[7px] sm:text-[8px] font-mono px-1 font-semibold leading-none ${
-                    note.startsWith("C") ? `${currentTheme.headerAccent} font-bold` : "text-zinc-600"
-                  }`}
+          {/* Interactive Piano Roll Editor Canvas */}
+          <div className="flex flex-col gap-1 mt-1">
+            <div className="flex items-center justify-between text-[8px] sm:text-[9px] font-mono text-zinc-400 px-1">
+              <span className="flex items-center gap-1 text-emerald-400">
+                <MousePointer className="h-3 w-3" />
+                <span>INTERACTIVE PIANO ROLL: Click any grid cell to add or remove notes</span>
+              </span>
+              {Object.keys(userEditedChords).length > 0 && (
+                <button
+                  onClick={resetAllManualEdits}
+                  className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
                 >
-                  {note}
-                </span>
-              ))}
+                  <RotateCcw className="h-2.5 w-2.5" />
+                  <span>Reset Manual Edits</span>
+                </button>
+              )}
             </div>
 
-            {/* Note canvas grid */}
-            <div className="relative flex-1 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-size-[100%_7.14%] overflow-hidden">
-              {/* Vertical Bar Grid lines and thicker Phrase dividers */}
-              <div className="absolute inset-0 flex pointer-events-none">
-                {Array.from({ length: barsCount }).map((_, i) => {
-                  const isPhraseEnd = (i + 1) % 4 === 0 && i !== barsCount - 1;
-                  return (
-                    <div
-                      key={i}
-                      className={`h-full relative ${
-                        isPhraseEnd ? "border-r-2 border-purple-500/40" : "border-r border-zinc-700/30"
-                      } ${playingBarIndex === i ? "bg-white/5" : ""}`}
-                      style={{ width: `${100 / barsCount}%` }}
-                    >
-                      {/* Phrase marker at the top */}
-                      {i % 4 === 0 && (
-                        <span className="absolute top-1 left-1 text-[6px] sm:text-[7px] font-mono font-bold text-zinc-500 opacity-70">
-                          {i === 0 ? "PHRASE A" : i === 4 ? "PHRASE B" : i === 8 ? "PHRASE C" : "PHRASE D"}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+            <div className={`relative flex h-48 sm:h-56 md:h-64 w-full rounded-lg border border-zinc-800 ${currentTheme.pianoRollBg} overflow-hidden shadow-inner`}>
+              {/* Note pitch labels on left ruler */}
+              <div className="w-8 sm:w-10 flex flex-col justify-between border-r border-zinc-800 bg-black/85 py-0.5 z-20 shrink-0">
+                {["B5", "G5", "E5", "C5", "A4", "F4", "D4", "B3", "G3", "E3", "C3", "A2", "F2", "D2", "C2"].map((note) => (
+                  <span
+                    key={note}
+                    className={`text-[7px] sm:text-[8px] font-mono px-1 font-semibold leading-none ${
+                      note.startsWith("C") ? `${currentTheme.headerAccent} font-bold` : "text-zinc-600"
+                    }`}
+                  >
+                    {note}
+                  </span>
+                ))}
               </div>
 
-              {/* Piano Roll Note Blocks */}
-              {progressionChords.map((chord, bIdx) => {
-                const barWidth = 100 / barsCount;
-                const baseLeft = bIdx * barWidth;
-                const isCurrent = playingBarIndex === bIdx;
+              {/* Note canvas grid with interactive click-to-edit */}
+              <div
+                onClick={handlePianoRollClick}
+                className="relative flex-1 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[100%_7.14%] overflow-hidden cursor-crosshair"
+              >
+                {/* Vertical Bar Grid lines and thicker Phrase dividers */}
+                <div className="absolute inset-0 flex pointer-events-none">
+                  {Array.from({ length: barsCount }).map((_, i) => {
+                    const isPhraseEnd = (i + 1) % 4 === 0 && i !== barsCount - 1;
+                    return (
+                      <div
+                        key={i}
+                        className={`h-full relative ${
+                          isPhraseEnd ? "border-r-2 border-purple-500/40" : "border-r border-zinc-700/30"
+                        } ${playingBarIndex === i ? "bg-white/5" : ""}`}
+                        style={{ width: `${100 / barsCount}%` }}
+                      >
+                        {/* Phrase marker at the top */}
+                        {i % 4 === 0 && (
+                          <span className="absolute top-1 left-1 text-[6px] sm:text-[7px] font-mono font-bold text-zinc-500 opacity-70">
+                            {i === 0 ? "PHRASE A" : i === 4 ? "PHRASE B" : i === 8 ? "PHRASE C" : "PHRASE D"}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
-                return chord.notes.map((midi, nIdx) => {
-                  const clamped = Math.max(36, Math.min(83, midi));
-                  const top = (1 - (clamped - 36) / 47) * 90;
-                  const strumOffset = (strumMs * nIdx * 0.003) * (4 / barsCount);
+                {/* Sliced Note Blocks: Responds dynamically to Arp Mode, Rhythm Chopping, and User Edits */}
+                {progressionChords.map((_, bIdx) => {
+                  const barWidth = 100 / barsCount;
+                  const baseLeft = bIdx * barWidth;
+                  const isCurrent = playingBarIndex === bIdx;
+                  const slices = barSlices[bIdx] || [];
 
-                  return (
-                    <div
-                      key={`${bIdx}-${midi}`}
-                      className={`absolute h-2 sm:h-2.5 rounded-sm bg-linear-to-r ${currentTheme.noteGradient} flex items-center px-0.5 sm:px-1 transition-all ${
-                        isCurrent ? "brightness-125 scale-[1.02] shadow-[0_0_12px_rgba(255,255,255,0.9)] z-10" : ""
-                      }`}
-                      style={{
-                        top: `${top}%`,
-                        left: `${baseLeft + strumOffset}%`,
-                        width: `${Math.max(2, barWidth * 0.9 - strumOffset)}%`,
-                      }}
-                    >
-                      <span className="text-[5px] sm:text-[6px] font-mono font-black text-black truncate leading-none">
-                        {midiToName(midi)}
-                      </span>
-                    </div>
-                  );
-                });
-              })}
+                  return slices.map((slice, sIdx) => {
+                    const clamped = Math.max(36, Math.min(83, slice.pitch));
+                    const top = (1 - (clamped - 36) / 47) * 91;
+                    const sliceLeft = baseLeft + slice.startRatio * barWidth;
+                    const sliceWidth = slice.durationRatio * barWidth;
+
+                    return (
+                      <div
+                        key={`${bIdx}-${sIdx}-${slice.pitch}`}
+                        className={`absolute h-2 sm:h-2.5 rounded-sm bg-linear-to-r ${currentTheme.noteGradient} flex items-center px-0.5 transition-all shadow-sm ${
+                          isCurrent ? "brightness-125 scale-[1.03] shadow-[0_0_12px_rgba(255,255,255,0.9)] z-10" : ""
+                        }`}
+                        style={{
+                          top: `${top}%`,
+                          left: `${sliceLeft}%`,
+                          width: `${Math.max(1.5, sliceWidth)}%`,
+                        }}
+                      >
+                        <span className="text-[5px] sm:text-[6px] font-mono font-black text-black truncate leading-none">
+                          {midiToName(slice.pitch)}
+                        </span>
+                      </div>
+                    );
+                  });
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -1537,6 +1802,7 @@ export default function Component() {
                   value={genreIdx}
                   onChange={(e) => {
                     stopAudio();
+                    setUserEditedChords({});
                     setGenreIdx(Number(e.target.value));
                     setSubgenreIdx(0);
                   }}
@@ -1558,6 +1824,7 @@ export default function Component() {
                   value={subgenreIdx}
                   onChange={(e) => {
                     stopAudio();
+                    setUserEditedChords({});
                     setSubgenreIdx(Number(e.target.value));
                   }}
                   className="w-full rounded border border-purple-500/40 bg-zinc-900 px-2 py-1.5 text-xs font-semibold text-purple-300 focus:outline-none cursor-pointer"
@@ -1658,7 +1925,7 @@ export default function Component() {
             )}
           </div>
           <div className="text-zinc-500">
-            VARIATION SEED #{variationSeed} · KEY: {scaleName.toUpperCase()}
+            VARIATION SEED #{variationSeed} · KEY: {scaleName.toUpperCase()} · {isArp ? `ARP: ${arpType.toUpperCase()}` : `RHYTHM: ${RHYTHM_PATTERNS[rhythmNotch].tag}`}
           </div>
         </div>
       </div>

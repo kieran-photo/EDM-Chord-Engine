@@ -1,3 +1,179 @@
+export type ArpType = "Up" | "Down" | "Up-Down" | "Down-Up" | "Pedal" | "Random";
+
+export interface SlicedNote {
+  barIdx: number;
+  pitch: number;
+  startRatio: number; // 0.0 to 1.0 within bar
+  durationRatio: number;
+}
+
+export interface RhythmPattern {
+  id: number;
+  name: string;
+  tag: string;
+  description: string;
+}
+
+export const RHYTHM_PATTERNS: RhythmPattern[] = [
+  { id: 0, name: "Sustain (1/1)", tag: "1/1", description: "Full-bar sustained chord pad" },
+  { id: 1, name: "1/4 Pulse", tag: "1/4", description: "4-on-the-floor driving house pulse" },
+  { id: 2, name: "1/8 Drive", tag: "1/8", description: "Straight eighth-note club energy" },
+  { id: 3, name: "Off-Beat Skank", tag: "Off", description: "Upbeat syncopation on the 'and' of beats" },
+  { id: 4, name: "Tresillo (3-3-2)", tag: "3-3-2", description: "Afro House & Melodic Techno polyrhythm" },
+  { id: 5, name: "1/16 Staccato", tag: "1/16", description: "Motorik high-speed trance & psytrance roll" },
+  { id: 6, name: "Anthem Sync", tag: "Sync", description: "Festival mainstage syncopated chord drops" },
+  { id: 7, name: "Gallop Pulse", tag: "Gallop", description: "Dotted-eighth driving gallop rhythm" },
+];
+
+export function generateBarNotes(
+  chordNotes: number[],
+  barIdx: number,
+  isArp: boolean,
+  arpType: ArpType,
+  rhythmNotch: number,
+  arpRate: "1/8" | "1/16" = "1/16"
+): SlicedNote[] {
+  if (!chordNotes || chordNotes.length === 0) return [];
+  const sorted = [...chordNotes].sort((a, b) => a - b);
+  const slices: SlicedNote[] = [];
+
+  if (isArp) {
+    const totalSteps = arpRate === "1/16" ? 16 : 8;
+    const stepDuration = (1 / totalSteps) * 0.88;
+
+    let seq: number[] = [];
+    if (arpType === "Up") {
+      seq = sorted;
+    } else if (arpType === "Down") {
+      seq = [...sorted].reverse();
+    } else if (arpType === "Up-Down") {
+      const downPart = sorted.slice(1, -1).reverse();
+      seq = [...sorted, ...downPart];
+    } else if (arpType === "Down-Up") {
+      const upPart = sorted.slice(1, -1);
+      seq = [[...sorted].reverse(), ...upPart].flat();
+    } else if (arpType === "Pedal") {
+      // Pedal: Root alternating with rolling upper chord tones (Classic EDM / Trance arp!)
+      const root = sorted[0];
+      const upper = sorted.length > 1 ? sorted.slice(1) : [sorted[0] + 12];
+      seq = [];
+      upper.forEach((n) => {
+        seq.push(root, n);
+      });
+    } else {
+      // Random / Constellation
+      seq = sorted;
+    }
+
+    if (seq.length === 0) seq = sorted;
+
+    for (let s = 0; s < totalSteps; s++) {
+      let pitch: number;
+      if (arpType === "Random") {
+        const randIdx = (s * 3 + barIdx * 5 + s * s) % sorted.length;
+        pitch = sorted[randIdx];
+      } else {
+        pitch = seq[s % seq.length];
+      }
+      slices.push({
+        barIdx,
+        pitch,
+        startRatio: s / totalSteps,
+        durationRatio: stepDuration,
+      });
+    }
+
+    return slices;
+  }
+
+  // Rhythm Chopping Engine
+  switch (rhythmNotch) {
+    case 1: {
+      // 1/4 Pulse: 4 hits at 0.0, 0.25, 0.5, 0.75
+      const hits = [0.0, 0.25, 0.5, 0.75];
+      hits.forEach((t) => {
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: 0.21 });
+        });
+      });
+      break;
+    }
+    case 2: {
+      // 1/8 Drive: 8 hits
+      for (let i = 0; i < 8; i++) {
+        const t = i * 0.125;
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: 0.10 });
+        });
+      }
+      break;
+    }
+    case 3: {
+      // Off-Beat: 4 upbeat hits at 0.125, 0.375, 0.625, 0.875
+      const hits = [0.125, 0.375, 0.625, 0.875];
+      hits.forEach((t) => {
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: 0.10 });
+        });
+      });
+      break;
+    }
+    case 4: {
+      // Tresillo (3-3-2): hits at 0.0, 0.375 (3/16), 0.75 (6/16)
+      const hits = [
+        { t: 0.0, d: 0.32 },
+        { t: 0.375, d: 0.32 },
+        { t: 0.75, d: 0.20 },
+      ];
+      hits.forEach(({ t, d }) => {
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: d });
+        });
+      });
+      break;
+    }
+    case 5: {
+      // 1/16 Staccato: 16 hits
+      for (let i = 0; i < 16; i++) {
+        const t = i * 0.0625;
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: 0.045 });
+        });
+      }
+      break;
+    }
+    case 6: {
+      // Anthem Sync: 4 syncopated hits at 0.0, 0.375, 0.625, 0.875
+      const hits = [0.0, 0.375, 0.625, 0.875];
+      hits.forEach((t) => {
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: 0.18 });
+        });
+      });
+      break;
+    }
+    case 7: {
+      // Gallop: Dotted 8th + 16th hits
+      const hits = [0.0, 0.1875, 0.25, 0.4375, 0.5, 0.6875, 0.75, 0.9375];
+      hits.forEach((t) => {
+        sorted.forEach((p) => {
+          slices.push({ barIdx, pitch: p, startRatio: t, durationRatio: 0.055 });
+        });
+      });
+      break;
+    }
+    default: {
+      // 0: Sustain (1/1) - full bar chord
+      sorted.forEach((p) => {
+        slices.push({ barIdx, pitch: p, startRatio: 0.0, durationRatio: 0.95 });
+      });
+      break;
+    }
+  }
+
+  return slices;
+}
+
 export interface EDMGenreData {
   genre: string;
   subgenres: string[];
